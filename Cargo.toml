@@ -1,0 +1,8 @@
+[workspace]
+resolver = "2"
+
+members = ["workflow-worker", "workflow-control", "workflow-core", "cli-common"]
+
+[profile.release-with-debug]
+inherits = "release"
+debug = true
