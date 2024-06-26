@@ -24,3 +24,7 @@ The engine is composed of the following components:
 - **Worker**: The worker is responsible for executing the job and corresponding tasks.
 - **Message Queue**: The message queue is used to communicate between the worker and the control instances.
 - **Shared Volume**: The shared volume is used to store the input and output of tasks and jobs. Worker consume input for their tasks from the shared volume and write the output of their tasks to the shared volume.
+
+Following the architecture diagram illustrates the components and their interactions:
+
+![Software Architecture](./img/software_architecture.png)
