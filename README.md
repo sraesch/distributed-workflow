@@ -28,3 +28,84 @@ The engine is composed of the following components:
 Following the architecture diagram illustrates the components and their interactions:
 
 ![Software Architecture](./img/software_architecture.png)
+
+### Job & Task Description
+
+#### Tasks
+A task is a simple building block that can be executed by a worker. A task consumes input and produces output. They are oblivious to the job in which they are executed.
+
+The individual tasks are described in a JSON file. The following is an example of a task description:
+```json
+{
+  "tasks": {
+    "export-data": {
+      "name": "Export Data",
+      "description": "Exports and serializes the data described by the given id",
+      "exec_command": "serialize_data",
+      "input": {
+        "data_id": {
+          "description": "The id of the data to be exported"
+        }
+      },
+      "exec_args": [
+        "--data_id",
+        "{data_id}",
+        "--endpoint",
+        "{REST_ENDPOINT}",
+        "--log_level",
+        "{LOG_LEVEL}"
+      ]
+    },
+    "download": {
+      "name": "Download file",
+      "description": "Downloads a single file from a given url",
+      "exec_command": "wget",
+      "input": {
+        "url": {
+          "description": "The url of the file to be downloaded"
+        },
+        "output_path": {
+          "description": "The path where the file should be stored"
+        }
+      },
+      "exec_args": ["{url}", "-P", "{output_path}"]
+    },
+    "env_whitelist": ["REST_ENDPOINT", "LOG_LEVEL"]
+  }
+  ...
+}
+```
+The task description consists of two tasks: `export-data` and `download`. Each task has a name, a description, an executable command and a list of arguments.
+For example, the export data command serializes some data with the command `serialize_data` and the arguments `--data_id`, `--endpoint` and `--log_level`.
+The argument `{data_id}` is assumed to be an input to be given to the task. The other arguments `{REST_ENDPOINT}` and `{LOG_LEVEL}` are environment variables that are passed to the worker executing the task.
+Thus the list `env_whitelist` contains a list of environment variables that are whitelisted and thus may be passed to the worker by replacing the corresponding placeholders in the arguments.
+
+#### Jobs
+A job is defining a number of stages to be executed in a consecutive order. Each stage consists of a number of tasks that are executed in parallel. The job description is a JSON file that describes the job and its stages and tasks. Following an example of a job description:
+```json
+{
+  ...
+  "jobs": {
+    "request-data": {
+      "name": "Requests Data",
+      "description": "Requests data from the server",
+      "input": {
+        "data_id": {
+          "description": "The id of the data to be exported"
+        }
+      },
+      "stages": [
+        {
+            "name": "Request Data",
+            "task_class": "export-data"
+        },
+        {
+            "name": "Download Data",
+            "task_class": "download"
+        }
+      ]
+    }
+  }
+}
+```
+The job description has a clear defined set of input values. In this case, there is only one input which is the `data_id`. The parameters are being used to trigger the first task of the first stage.
