@@ -1,0 +1,88 @@
+---
+  # The list of tasks that can be executed by the job
+  tasks:
+    # A task that exports and serializes data from a server defined by the given data id.
+    export-data:
+      name: Export Data
+      description: Exports and serializes the data described by the given id
+      # The list of different input parameters that the task can take.
+      # An input can be a parameter or an environment variable.
+      input:
+        data_id:
+          description: The id of the data to be exported
+          source: parameter
+        REST_ENDPOINT:
+          description: The endpoint of the server
+          source: environment
+        LOG_LEVEL:
+          description: The log level
+          source: environment
+      exec_command: serialize_data
+      exec_args:
+      - "--data_id"
+      - "{data_id}"
+      - "--endpoint"
+      - "{REST_ENDPOINT}"
+      - "--log_level"
+      - "{LOG_LEVEL}"
+    # A special task that creates the spawn.json file that contains the input parameters for the
+    # tasks that should be spawned in the second stage.
+    spawn_download_tasks:
+      name: Spawn Download Tasks
+      description: Creates the spawn.json for the download tasks
+      exec_command: python3
+      exec_args:
+      - "create_download_tasks.py"
+    # A task that downloads a single file from a given url
+    download:
+      name: Download file
+      description: Downloads a single file from a given url
+      exec_command: wget
+      input:
+        url:
+          description: The url of the file to be downloaded
+          source: parameter
+        basic_auth:
+          description: The basic authentication credentials
+          source: parameter
+        output_path:
+          description: The path where the file should be stored
+          source: parameter
+      exec_args:
+      - -d
+      - >
+        "--header=Authorization: {basic_auth}"
+      - {url}
+      - -P
+      - {output_path}
+  # The list of jobs that can be executed
+  jobs:
+    # A job that requests data from the server and downloads it
+    request-data:
+      name: Requests Data
+      description: Requests data from the server
+      # The input parameters for the job
+      input:
+        data_id:
+          description: The id of the data to be exported
+          source: parameter
+        basic_auth:
+          description: The basic authentication credentials
+          # The source for this input is inside a header value of the initial REST request
+          source: http-header
+          # The name of the header key that contains the value for input
+          key: Authorization
+      # The list of stages that the job consists of.
+      stages:
+      # The first stage of the job that exports the data and serializes it
+      - name: Request Data
+        task_class: export-data # The task class that should be executed
+      - name: Download Data
+        # Optionally, the stage can have a spawn_task that runs and creates a file called
+        # spawn.json. This file contains an array of input parameters for the tasks 
+        # that should be spawned in the next stage.
+        # If no spawn_task is defined, the stage will only execute a single instance of the defined
+        # task_class with the initial job input parameters and environment variables.
+        spawn_task: spawn_download_tasks
+        # The task class that should be executed
+        task_class: download
