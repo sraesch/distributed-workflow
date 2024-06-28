@@ -125,6 +125,8 @@ A job consists of a consecutive list of stages to be executed in that order. Eac
       # The first stage of the job that exports the data and serializes it
       - name: Request Data
         task_class: export-data # The task class that should be executed
+        # If the task fails, the job will fail as well
+        job_failed_on_error: true
       - name: Download Data
         # Optionally, the stage can have a spawn_task that runs and creates a file called
         # spawn.json. This file contains an array of input parameters for the tasks 
@@ -134,7 +136,25 @@ A job consists of a consecutive list of stages to be executed in that order. Eac
         spawn_task: spawn_download_tasks
         # The task class that should be executed
         task_class: download
+        # If some of the download tasks fail, the job will not fail and just ignore the failed
+        # downloads
+        job_failed_on_error: false
 ```
 The job description has a clear defined set of input values. In this case, there are two inputs which is `data_id` and `basic_auth`. A job is being triggered through a REST request which provides the required input parameter. `data_id` has to be given as explicit parameter for the REST call whereas `basic_auth` is being extracted from the HTTP-header values from the initial REST call. The parameters are being used to trigger the first task of the first stage. For the second stage in this example, a spawn task is defined which creates a file called `spawn.json`. This file contains an array of input parameters for the tasks that should be spawned in the next stage. The worker reads the `spawn.json` file and spawns the tasks with the given input parameters.
+The `spawn.json` file looks like:
+```json
+[
+  {
+    "url": "https://www.example.com/file1.txt",
+    "output_path": "./downloaded_files"
+  },
+  {
+    "url": "https://www.example.com/file2.txt",
+    "output_path": "./downloaded_files"
+  }
+]
+```
+
+Additionally, each stage has a `job_failed_on_error` flag. If this flag is set to `true`, the job will fail if one of the tasks in the stage fails. If the flag is set to `false`, the job will not fail if one of the tasks in the stage fails.
 
 For the full example, see [example/task_job_config.yaml](example/task_job_config.yaml).

@@ -77,6 +77,8 @@
       # The first stage of the job that exports the data and serializes it
       - name: Request Data
         task_class: export-data # The task class that should be executed
+        # If the task fails, the job will fail as well
+        job_failed_on_error: true
       - name: Download Data
         # Optionally, the stage can have a spawn_task that runs and creates a file called
         # spawn.json. This file contains an array of input parameters for the tasks 
@@ -86,3 +88,6 @@
         spawn_task: spawn_download_tasks
         # The task class that should be executed
         task_class: download
+        # If some of the download tasks fail, the job will not fail and just ignore the failed
+        # downloads
+        job_failed_on_error: false
