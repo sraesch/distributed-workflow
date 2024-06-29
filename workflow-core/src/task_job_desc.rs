@@ -118,6 +118,9 @@ pub struct TaskDefinition {
 pub struct TaskInput {
     /// A small description of what the input is used for.
     pub description: String,
+    /// If true, the input value is a secret and should not be logged.
+    #[serde(default)]
+    pub secret: bool,
     /// The source type, where the input value is coming from.
     pub source_type: TaskInputSourceType,
 }
@@ -151,6 +154,9 @@ pub struct JobInput {
     pub description: String,
     /// The source, where the input value is coming from.
     pub source_type: JobInputSourceType,
+    /// If true, the input value is a secret and should not be logged.
+    #[serde(default)]
+    pub secret: bool,
     /// Optionally, the key value if the source is http-headers.
     pub key: Option<String>,
 }
