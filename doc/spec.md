@@ -141,3 +141,6 @@ The `spawn.json` file looks like:
 Additionally, each stage has a `job_failed_on_error` flag. If this flag is set to `true`, the job will fail if one of the tasks in the stage fails. If the flag is set to `false`, the job will not fail if one of the tasks in the stage fails.
 
 For the full example, see [example/task_job_config.yaml](../example/task_job_config.yaml).
+
+## REST API
+The engine provides a REST API for managing the jobs. For detailed overview see the OpenAPI specification in [/doc/openapi.yml](openapi.yml).
