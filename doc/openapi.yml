@@ -31,8 +31,7 @@ paths:
                   type: string
                   description: The type of job to run
                 input:
-                  type: object
-                  description: The input parameters for the job
+                  $ref: "#/components/schemas/ParameterSet"
       responses:
         '201':
           description: Job created successfully
@@ -108,12 +107,7 @@ paths:
                           type: string
                           description: The type of job
                         job_state:
-                          type: string
-                          enum:
-                            - Queued
-                            - Running
-                            - Finished
-                            - Failed
+                          $ref: "#/components/schemas/Status"
                         stage:
                           type: integer
                           minimum: 0
@@ -162,12 +156,7 @@ paths:
                     type: string
                     description: The type of job
                   job_state:
-                    type: string
-                    enum:
-                      - Queued
-                      - Running
-                      - Finished
-                      - Failed
+                    $ref: "#/components/schemas/Status"
                   stage:
                     type: integer
                     minimum: 0
@@ -207,8 +196,7 @@ paths:
                     format: date-time
                     description: The last update time of the job
                   input:
-                    type: object
-                    description: The input parameters for the job as key-value pairs
+                    $ref: "#/components/schemas/ParameterSet"
         '404':
           description: Job not found
           content: 
@@ -287,12 +275,7 @@ paths:
                           type: string
                           description: The name of the task
                         task_state:
-                          type: string
-                          enum:
-                            - Queued
-                            - Running
-                            - Finished
-                            - Failed
+                          $ref: "#/components/schemas/Status"
                         stage:
                           type: integer
                           minimum: 0
@@ -408,3 +391,17 @@ paths:
               schema:
                 type: string
                 description: An error message explaining the issue
+components:
+  schemas:
+    Status:
+      type: string
+      description: The status of a job or task
+      enum:
+        - NotStarted
+        - Queued
+        - Running
+        - Finished
+        - Failed
+    ParameterSet:
+      type: object
+      description: A set of parameters for a job or task consisting of key-value pairs
