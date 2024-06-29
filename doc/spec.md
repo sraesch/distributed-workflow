@@ -144,3 +144,4 @@ For the full example, see [example/task_job_config.yaml](../example/task_job_con
 
 ## REST API
 The engine provides a REST API for managing the jobs. For detailed overview see the OpenAPI specification in [/doc/openapi.yml](openapi.yml).
+To see the the API in an interactive way, you can use the Swagger UI. To do so, click here [Swagger UI](https://editor.swagger.io/?url=https://raw.githubusercontent.com/sraesch/distributed-workflow/main/doc/openapi.yml).
