@@ -1,0 +1,410 @@
+openapi: 3.0.0
+info:
+  title: Distributed Workflow Controller API
+  description: API for managing and monitoring distributed jobs and tasks.
+  license: 
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  version: 1.0.0
+
+servers:
+  - url: /api/v1
+
+security: 
+  - {}
+
+paths:
+  /jobs:
+    post:
+      operationId: create_job
+      summary: Trigger a new job
+      description: Creates a new job and returns its ID.
+      requestBody: 
+        required: true
+        description: Specify the job type and input parameters
+        content: 
+          application/json:
+            schema:
+              type: object
+              properties: 
+                type:
+                  type: string
+                  description: The type of job to run
+                input:
+                  type: object
+                  description: The input parameters for the job
+      responses:
+        '201':
+          description: Job created successfully
+          content: 
+            application/json:
+              schema:
+                type: string
+                format: uuid
+                description: The ID of the newly created job
+        '400':
+          description: Job could not be created due to invalid input parameter
+          content: 
+            application/json:
+              schema:
+                type: string
+                description: An error message explaining the issue
+        '404':
+          description: Job type not found
+          content: 
+            application/json:
+              schema:
+                type: string
+                description: An error message explaining the issue
+        '500':
+          description: Internal server error
+          content: 
+            application/json:
+              schema:
+                type: string
+                description: An error message explaining the issue
+    get:
+      operationId: list_jobs
+      summary: List jobs
+      description: Returns a list of jobs with the given offset and limit.
+      parameters:
+        - name: offset
+          in: query
+          description: The offset of the first job to return
+          required: true
+          schema: 
+            type: integer
+            minimum: 0
+        - name: limit
+          in: query
+          description: The maximum number of jobs to return
+          required: true
+          schema: 
+            type: integer
+            minimum: 0
+            maximum: 200
+      responses:
+        '200':
+          description: List of jobs
+          content: 
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_count:
+                    type: integer
+                    minimum: 0
+                    description: The overall total number of all jobs
+                  jobs:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        job_id:
+                          type: string
+                          format: uuid
+                          description: The ID of the job
+                        job_type:
+                          type: string
+                          description: The type of job
+                        job_state:
+                          type: string
+                          enum:
+                            - Queued
+                            - Running
+                            - Finished
+                            - Failed
+                        stage:
+                          type: integer
+                          minimum: 0
+                          description: The current stage of the job
+                        created_at:
+                          type: string
+                          format: date-time
+                          description: The creation time of the job
+                        updated_at:
+                          type: string
+                          format: date-time
+                          description: The last update time of the job
+        '500':
+          description: Internal server error
+          content: 
+            application/json:
+              schema:
+                type: string
+                description: An error message explaining the issue
+  /jobs/{job_id}:
+    get:
+      operationId: get_job
+      summary: Get job details
+      description: Returns the details of a job with the given ID.
+      parameters:
+        - name: job_id
+          in: path
+          description: The ID of the job
+          required: true
+          schema: 
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Job details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id:
+                    type: string
+                    format: uuid
+                    description: The ID of the job
+                  job_type:
+                    type: string
+                    description: The type of job
+                  job_state:
+                    type: string
+                    enum:
+                      - Queued
+                      - Running
+                      - Finished
+                      - Failed
+                  stage:
+                    type: integer
+                    minimum: 0
+                    description: The current stage of the job. Only applicable for running jobs
+                  tasks_summary:
+                    type: array
+                    description: A summary of the tasks for each stage. The array index is the stage
+                    items:
+                      type: object
+                      properties:
+                        total_count:
+                          type: integer
+                          minimum: 0
+                          description: The total number of tasks for the stage
+                        queued_count:
+                          type: integer
+                          minimum: 0
+                          description: The number of tasks in the queued state
+                        running_count:
+                          type: integer
+                          minimum: 0
+                          description: The number of tasks in the running state
+                        finished_count:
+                          type: integer
+                          minimum: 0
+                          description: The number of tasks in the finished state
+                        failed_count:
+                          type: integer
+                          minimum: 0
+                          description: The number of tasks in the failed state
+                  created_at:
+                    type: string
+                    format: date-time
+                    description: The creation time of the job
+                  updated_at:
+                    type: string
+                    format: date-time
+                    description: The last update time of the job
+                  input:
+                    type: object
+                    description: The input parameters for the job as key-value pairs
+        '404':
+          description: Job not found
+          content: 
+            application/json:
+              schema:
+                type: string
+                description: An error message explaining the issue
+        '500':
+          description: Internal server error
+          content: 
+            application/json:
+              schema:
+                type: string
+                description: An error message explaining the issue
+  /jobs/{job_id}/tasks:
+    get:
+      operationId: list_job_tasks
+      summary: List tasks of the specified job
+      description: Returns a list of tasks for a job with the given ID.
+      parameters:
+        - name: job_id
+          in: path
+          description: The ID of the job
+          required: true
+          schema: 
+            type: string
+            format: uuid
+        - name: offset
+          in: query
+          description: The offset of the first task to return
+          required: true
+          schema: 
+            type: integer
+            minimum: 0
+        - name: limit
+          in: query
+          description: The maximum number of tasks to return
+          required: true
+          schema: 
+            type: integer
+            minimum: 0
+            maximum: 200
+        - name: stage
+          in: query
+          description: The stage of the tasks to return
+          required: false
+          schema: 
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: List of tasks
+          content: 
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_count:
+                    type: integer
+                    minimum: 0
+                    description: The overall total number of all tasks with the given filter
+                  job_id:
+                    type: string
+                    format: uuid
+                    description: The ID of the job
+                  tasks:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        task_id:
+                          type: string
+                          format: uuid
+                          description: The ID of the task
+                        task_name:
+                          type: string
+                          description: The name of the task
+                        task_state:
+                          type: string
+                          enum:
+                            - Queued
+                            - Running
+                            - Finished
+                            - Failed
+                        stage:
+                          type: integer
+                          minimum: 0
+                          description: The current stage of the task
+                        created_at:
+                          type: string
+                          format: date-time
+                          description: The creation time of the task
+                        updated_at:
+                          type: string
+                          format: date-time
+                          description: The last update time of the task
+        '404':
+          description: Job not found
+          content: 
+            application/json:
+              schema:
+                type: string
+                description: An error message explaining the issue
+        '500':
+          description: Internal server error
+          content: 
+            application/json:
+              schema:
+                type: string
+                description: An error message explaining the issue
+  /jobs/{job_id}/log:
+    get:
+      operationId: get_job_log
+      summary: Get job log
+      description: Returns the log of the job with the given ID.
+      parameters:
+        - name: job_id
+          in: path
+          description: The ID of the job
+          required: true
+          schema: 
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Job log
+          content: 
+            text/plain:
+              schema:
+                type: string
+                description: The log of the job
+        '404':
+          description: Job not found or log not available
+          content: 
+            application/json:
+              schema:
+                type: string
+                description: An error message explaining the issue
+        '500':
+          description: Internal server error
+          content: 
+            application/json:
+              schema:
+                type: string
+                description: An error message explaining the issue
+  /tasks/{task_id}/log:
+    get:
+      operationId: get_task_log
+      summary: Get task log
+      description: Returns the log of the task with the given ID.
+      parameters:
+        - name: task_id
+          in: path
+          description: The ID of the task
+          required: true
+          schema: 
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Task log
+          content: 
+            text/plain:
+              schema:
+                type: string
+                description: The log of the task
+        '404':
+          description: Task not found or log not available
+          content: 
+            application/json:
+              schema:
+                type: string
+                description: An error message explaining the issue
+        '500':
+          description: Internal server error
+          content: 
+            application/json:
+              schema:
+                type: string
+                description: An error message explaining the issue
+  /definitions:
+    get:
+      operationId: get_definitions
+      summary: Returns the defined tasks and jobs
+      description: Returns the defined tasks and jobs
+      responses:
+        '200':
+          description: List of job and task definitions
+          content: 
+            application/json:
+              schema:
+                type: object
+        '500':
+          description: Internal server error
+          content: 
+            application/json:
+              schema:
+                type: string
+                description: An error message explaining the issue

@@ -1,0 +1,94 @@
+---
+  # The list of tasks that can be executed by the job
+  tasks:
+    # A task that exports and serializes data from a server defined by the given data id.
+    export-data:
+      description: Exports and serializes the data described by the given id
+      # The list of different input parameters that the task can take.
+      # An input can be a parameter or an environment variable.
+      input:
+        data_id:
+          description: The id of the data to be exported
+          source_type: parameter
+        REST_ENDPOINT:
+          description: The endpoint of the server
+          source_type: environment
+        LOG_LEVEL:
+          description: The log level
+          source_type: environment
+      exec_command: serialize_data
+      exec_args:
+      - "--data_id"
+      - "{{data_id}}"
+      - "--endpoint"
+      - "{{REST_ENDPOINT}}"
+      - "--log_level"
+      - "{{LOG_LEVEL}}"
+    # A special task that creates the spawn.json file that contains the input parameters for the
+    # tasks that should be spawned in the second stage.
+    spawn_download_tasks:
+      description: Creates the spawn.json for the download tasks
+      exec_command: python3
+      exec_args:
+      - "create_download_tasks.py"
+    # A task that downloads a single file from a given url
+    download:
+      description: Downloads a single file from a given url
+      exec_command: wget
+      input:
+        url:
+          description: The url of the file to be downloaded
+          source_type: parameter
+        basic_auth:
+          description: The basic authentication credentials
+          # Optionally, set the secret flag to disguise the value.
+          # By default, the value is set to false.
+          secret: true
+          source_type: parameter
+        output_path:
+          description: The path where the file should be stored
+          source_type: parameter
+      exec_args:
+      - -d
+      - >
+        "--header=Authorization: {{basic_auth}}"
+      - "{{url}}"
+      - -P
+      - "{{output_path}}"
+  # The list of jobs that can be executed
+  jobs:
+    # A job that requests data from the server and downloads it
+    request-data:
+      description: Requests data from the server
+      # The input parameters for the job
+      input:
+        data_id:
+          description: The id of the data to be exported
+          source_type: parameter
+        basic_auth:
+          description: The basic authentication credentials
+          # The source for this input is inside a header value of the initial REST request
+          source_type: http-header
+          # Optionally, set the secret flag to disguise the value.
+          secret: true
+          # The name of the header key that contains the value for input
+          key: Authorization
+      # The list of stages that the job consists of.
+      stages:
+      # The first stage of the job that exports the data and serializes it
+      - name: Request Data
+        task_class: export-data # The task class that should be executed
+        # If the task fails, the job will fail as well
+        job_failed_on_error: true
+      - name: Download Data
+        # Optionally, the stage can have a spawn_task that runs and creates a file called
+        # spawn.json. This file contains an array of input parameters for the tasks 
+        # that should be spawned in the next stage.
+        # If no spawn_task is defined, the stage will only execute a single instance of the defined
+        # task_class with the initial job input parameters and environment variables.
+        spawn_task: spawn_download_tasks
+        # The task class that should be executed
+        task_class: download
+        # If some of the download tasks fail, the job will not fail and just ignore the failed
+        # downloads
+        job_failed_on_error: false
