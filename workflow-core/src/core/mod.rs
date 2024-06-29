@@ -6,6 +6,8 @@ pub use states::*;
 
 use serde::{Deserialize, Serialize};
 
+use crate::Error;
+
 /// A timestamp being used for tracking the time of events.
 pub type TimeStamp = chrono::DateTime<chrono::Local>;
 
@@ -17,8 +19,36 @@ pub type ParameterSet = std::collections::HashMap<String, String>;
 pub enum Status {
     NotStarted,
     Queued,
+    Running,
     Finished,
     Failed,
+}
+
+impl TryFrom<i32> for Status {
+    type Error = Error;
+
+    fn try_from(value: i32) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Status::NotStarted),
+            1 => Ok(Status::Queued),
+            2 => Ok(Status::Running),
+            3 => Ok(Status::Finished),
+            4 => Ok(Status::Failed),
+            _ => Err(Error::InvalidStatusCode(value)),
+        }
+    }
+}
+
+impl From<Status> for i32 {
+    fn from(state: Status) -> Self {
+        match state {
+            Status::NotStarted => 0,
+            Status::Queued => 1,
+            Status::Running => 2,
+            Status::Finished => 3,
+            Status::Failed => 4,
+        }
+    }
 }
 
 /// The state of a job that consists of its status and the current stage.
@@ -26,4 +56,26 @@ pub enum Status {
 pub struct JobState {
     pub status: Status,
     pub stage: usize,
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_status_conversion() {
+        let all_statuses = vec![
+            Status::NotStarted,
+            Status::Queued,
+            Status::Running,
+            Status::Finished,
+            Status::Failed,
+        ];
+
+        for status in all_statuses {
+            let i = i32::from(status);
+            let converted_status = Status::try_from(i).unwrap();
+            assert_eq!(status, converted_status);
+        }
+    }
 }

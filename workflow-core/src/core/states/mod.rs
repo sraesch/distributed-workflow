@@ -1,3 +1,5 @@
+pub mod postgres;
+
 use std::future::Future;
 
 use serde::{Deserialize, Serialize};

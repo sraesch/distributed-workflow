@@ -1,18 +1,32 @@
-use std::sync::Arc;
-
+use deadpool_postgres::{CreatePoolError, PoolError};
 use serde_yaml::Error as YamlError;
 use thiserror::Error;
 
-#[derive(Error, Debug, Clone)]
+#[derive(Error, Debug)]
 pub enum Error {
     #[error("Failed parsing the config: {0}")]
-    ParsingConfigError(#[from] Arc<YamlError>),
+    ParsingConfigError(#[from] Box<YamlError>),
 
     #[error("Invalid config: {0}")]
     InvalidConfigError(String),
 
     #[error("IO Error: {0}")]
-    IO(#[from] Arc<std::io::Error>),
+    IO(#[from] Box<std::io::Error>),
+
+    #[error("Failed to initialize connection pool: {0}")]
+    DBCreatePoolError(#[from] Box<CreatePoolError>),
+
+    #[error("Failed to get connection: {0}")]
+    DBPoolError(#[from] Box<PoolError>),
+
+    #[error("Postgres DB error: {0}")]
+    DBError(#[from] Box<tokio_postgres::Error>),
+
+    #[error("Invalid status status: {0}")]
+    InvalidStatusCode(i32),
+
+    #[error("Internal error: {0}")]
+    InternalError(String),
 }
 
 /// The result type used in this crate.
