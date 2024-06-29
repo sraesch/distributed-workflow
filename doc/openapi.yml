@@ -107,7 +107,7 @@ paths:
                           type: string
                           description: The type of job
                         job_state:
-                          $ref: "#/components/schemas/Status"
+                          $ref: "#/components/schemas/JobState"
                         stage:
                           type: integer
                           minimum: 0
@@ -156,7 +156,7 @@ paths:
                     type: string
                     description: The type of job
                   job_state:
-                    $ref: "#/components/schemas/Status"
+                    $ref: "#/components/schemas/JobState"
                   stage:
                     type: integer
                     minimum: 0
@@ -171,6 +171,10 @@ paths:
                           type: integer
                           minimum: 0
                           description: The total number of tasks for the stage
+                        not_started_count:
+                          type: integer
+                          minimum: 0
+                          description: The number of tasks in the not started state
                         queued_count:
                           type: integer
                           minimum: 0
@@ -405,3 +409,13 @@ components:
     ParameterSet:
       type: object
       description: A set of parameters for a job or task consisting of key-value pairs
+    JobState:
+      type: object
+      description: The state of a job
+      properties:
+        state:
+          $ref: "#/components/schemas/Status"
+        stage:
+          type: integer
+          minimum: 0
+          description: The current stage of the job
