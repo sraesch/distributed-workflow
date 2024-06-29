@@ -2,6 +2,8 @@ use deadpool_postgres::{CreatePoolError, PoolError};
 use serde_yaml::Error as YamlError;
 use thiserror::Error;
 
+use crate::Id;
+
 #[derive(Error, Debug)]
 pub enum Error {
     #[error("Failed parsing the config: {0}")]
@@ -27,6 +29,15 @@ pub enum Error {
 
     #[error("Internal error: {0}")]
     InternalError(String),
+
+    #[error("Job not found: {0}")]
+    JobNotFound(Id),
+
+    #[error("Job not running: {0}")]
+    JobNotRunning(Id),
+
+    #[error("Task already exists: {0}")]
+    TaskIdNotUnique(Id),
 }
 
 /// The result type used in this crate.

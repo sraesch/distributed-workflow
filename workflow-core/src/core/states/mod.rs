@@ -181,7 +181,27 @@ pub trait StatesBackend: Send + Sync {
     /// # Arguments
     /// * `job_id` - The id of the owning job.
     /// * `task_ids` - The ids of the tasks.
-    fn new_tasks(&self, job_id: &Id, task_ids: &[Id]) -> impl Future<Output = Result<()>> + Send;
+    /// * `timestamp` - The timestamp when the tasks were created.
+    fn new_tasks_with_timestamp(
+        &self,
+        job_id: &Id,
+        task_ids: &[Id],
+        timestamp: TimeStamp,
+    ) -> impl Future<Output = Result<()>> + Send;
+
+    /// Registers the given tasks. The tasks are initially in the not started state.
+    /// Returns an error if either
+    /// - the job with the given id was not found or
+    /// - the task ids are not unique or
+    /// - the job is not in the running state.
+    ///
+    /// # Arguments
+    /// * `job_id` - The id of the owning job.
+    /// * `task_ids` - The ids of the tasks.
+    fn new_tasks(&self, job_id: &Id, task_ids: &[Id]) -> impl Future<Output = Result<()>> + Send {
+        let timestamp = chrono::Local::now();
+        self.new_tasks_with_timestamp(job_id, task_ids, timestamp)
+    }
 
     /// Updates the state of a task and also decrements the number of queued tasks in the owning
     /// job if the task is finished or failed. Returns true if the current stage of the job is

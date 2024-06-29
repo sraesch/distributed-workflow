@@ -1,16 +1,21 @@
 use std::{collections::HashMap, str::FromStr};
 
-use chrono::Local;
 use dockertest::{DockerTest, Image, TestBodySpecification};
 use workflow_core::{
     postgres::{PostgresBackend, PostgresConfig},
-    Id, Secret, StatesBackend, TimeStamp,
+    Error, Id, JobState, Secret, StatesBackend, Status, TimeStamp,
 };
+
+struct Tasks {
+    created_at: TimeStamp,
+    task_ids: Vec<Id>,
+}
 
 struct JobTestData {
     job_type: String,
     created_at: workflow_core::TimeStamp,
     input: workflow_core::ParameterSet,
+    tasks: Tasks,
 }
 
 /// Create a list of test jobs.
@@ -24,11 +29,19 @@ fn create_list_of_test_jobs() -> Vec<JobTestData> {
             job_type: search_job_type.to_string(),
             created_at: TimeStamp::from_str("2020-03-12 13:12:41 +01:00").unwrap(),
             input: Default::default(),
+            tasks: Tasks {
+                created_at: TimeStamp::from_str("2020-03-12 13:13:00 +01:00").unwrap(),
+                task_ids: vec![Id::default(), Id::default()],
+            },
         },
         JobTestData {
             job_type: search_job_type.to_string(),
             created_at: TimeStamp::from_str("2020-03-12 13:13:15 +01:00").unwrap(),
             input: Default::default(),
+            tasks: Tasks {
+                created_at: TimeStamp::from_str("2020-03-12 13:14:00 +01:00").unwrap(),
+                task_ids: vec![Id::default()],
+            },
         },
         // add some jobs of the type compress
         JobTestData {
@@ -38,6 +51,10 @@ fn create_list_of_test_jobs() -> Vec<JobTestData> {
                 ("input_file".to_string(), "file1.txt".to_string()),
                 ("compression_level".to_string(), "9".to_string()),
             ]),
+            tasks: Tasks {
+                created_at: TimeStamp::from_str("2020-03-13 14:02:00 +01:00").unwrap(),
+                task_ids: vec![Id::default(), Id::default(), Id::default()],
+            },
         },
         JobTestData {
             job_type: compress_job_type.to_string(),
@@ -46,6 +63,10 @@ fn create_list_of_test_jobs() -> Vec<JobTestData> {
                 ("input_file".to_string(), "file2.txt".to_string()),
                 ("compression_level".to_string(), "8".to_string()),
             ]),
+            tasks: Tasks {
+                created_at: TimeStamp::from_str("2020-03-13 14:12:00 +01:00").unwrap(),
+                task_ids: vec![Id::default(), Id::default(), Id::default(), Id::default()],
+            },
         },
     ]
 }
@@ -82,8 +103,80 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
     // make sure the initial state of the jobs is correct
     for job_id in job_ids.iter() {
         let job_state = backend.job_state(job_id).await.unwrap().unwrap();
-        assert_eq!(job_state.status, workflow_core::Status::NotStarted);
+        assert_eq!(job_state.status, Status::NotStarted);
         assert_eq!(job_state.stage, 0);
+    }
+
+    // update the state of the jobs to queued
+    for (job_id, test_job) in job_ids.iter().zip(test_jobs.iter()) {
+        let new_updated_at = test_job.created_at + chrono::Duration::seconds(1);
+
+        let new_job_state = JobState {
+            status: Status::Queued,
+            stage: 0,
+        };
+
+        backend
+            .update_job_state_with_timestamp(job_id, new_job_state, new_updated_at)
+            .await
+            .unwrap();
+    }
+
+    // the first two jobs should have 1 seconds difference between the created and updated
+    // timestamp
+    for job in backend.list_jobs(0, 2).await.unwrap().jobs.iter() {
+        assert_eq!(
+            job.created_at,
+            job.updated_at - chrono::Duration::seconds(1)
+        );
+    }
+
+    // try to create a task while the job is not in running status
+    match backend
+        .new_tasks(job_ids.first().unwrap(), &[Id::default()])
+        .await
+    {
+        Ok(_) => panic!("Creating a task for a job that is not running should fail"),
+        Err(Error::JobNotRunning { .. }) => {}
+        Err(e) => {
+            panic!(
+                "Creating a task for a job that is not running should return JobNotRunning error, but got {:?}",
+                e
+            );
+        }
+    }
+
+    // ret to create a task for job that does not exist
+    match backend.new_tasks(&Id::default(), &[Id::default()]).await {
+        Ok(_) => panic!("Creating a task for a job that does not exist should fail"),
+        Err(Error::JobNotFound { .. }) => {}
+        Err(e) => {
+            panic!(
+                "Creating a task for a job that does not exist should return JobNotFound error, but got {:?}",
+                e
+            );
+        }
+    }
+
+    // update the state of the jobs to running
+    for job_id in job_ids.iter() {
+        let new_job_state = JobState {
+            status: Status::Running,
+            stage: 0,
+        };
+
+        backend
+            .update_job_state(job_id, new_job_state)
+            .await
+            .unwrap();
+    }
+
+    // now create the tasks for the jobs
+    for (job_id, test_job) in job_ids.iter().zip(test_jobs.iter()) {
+        backend
+            .new_tasks_with_timestamp(job_id, &test_job.tasks.task_ids, test_job.tasks.created_at)
+            .await
+            .unwrap();
     }
 }
 

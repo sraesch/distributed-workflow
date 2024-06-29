@@ -2,7 +2,7 @@ use chrono::{DateTime, Local};
 use deadpool_postgres::{Config, Pool};
 use log::{error, info, trace};
 use serde::Deserialize;
-use tokio_postgres::{NoTls, Row};
+use tokio_postgres::{error::SqlState, NoTls, Row};
 use uuid::Uuid;
 
 use crate::{
@@ -291,11 +291,78 @@ impl StatesBackend for PostgresBackend {
         state: JobState,
         update_timestamp: TimeStamp,
     ) -> WfResult<()> {
-        todo!()
+        let new_status = i32::from(state.status);
+        let new_stage = state.stage as i32;
+
+        let num_changes = self
+            .execute_statement(
+                "UPDATE jobs SET job_state = $1, job_stage = $2 WHERE job_id = $3",
+                &[&new_status, &new_stage, &job_id.into_inner()],
+            )
+            .await?;
+
+        // if no rows were changed, the job was not found
+        if num_changes == 0 {
+            return Err(Error::JobNotFound(*job_id));
+        }
+
+        // update the jobs_updates table
+        self.execute_statement(
+            "INSERT INTO jobs_updates (job_id, job_state, job_stage, updated_at) VALUES ($1, $2, $3, $4)",
+            &[&job_id.into_inner(), &new_status, &new_stage, &update_timestamp],
+        ).await?;
+
+        Ok(())
     }
 
-    async fn new_tasks(&self, job_id: &Id, task_ids: &[Id]) -> WfResult<()> {
-        todo!()
+    async fn new_tasks_with_timestamp(
+        &self,
+        job_id: &Id,
+        task_ids: &[Id],
+        timestamp: TimeStamp,
+    ) -> WfResult<()> {
+        // check that the associated job is running
+        let job_state = match self.job_state(job_id).await? {
+            Some(state) => state,
+            None => return Err(Error::JobNotFound(*job_id)),
+        };
+
+        if job_state.status != Status::Running {
+            return Err(Error::JobNotRunning(*job_id));
+        }
+
+        // prepare the insert statement
+        let client = self.get_client().await?;
+        let stmt = client
+            .prepare("INSERT INTO tasks (job_id, task_id, task_state, created_at) VALUES ($1, $2, $3, $4)")
+            .await
+            .map_err(|e| Error::DBError(Box::new(e)))?;
+
+        // insert the tasks into the database
+        let task_state = i32::from(Status::NotStarted);
+        for task_id in task_ids {
+            if let Err(err) = client
+                .execute(
+                    &stmt,
+                    &[
+                        &job_id.into_inner(),
+                        &task_id.into_inner(),
+                        &task_state,
+                        &timestamp,
+                    ],
+                )
+                .await
+            {
+                match err.code().cloned() {
+                    Some(SqlState::UNIQUE_VIOLATION) => {
+                        return Err(Error::TaskIdNotUnique(*task_id));
+                    }
+                    _ => return Err(Error::DBError(Box::new(err))),
+                }
+            }
+        }
+
+        Ok(())
     }
 
     async fn update_task_state(&self, task_id: &Id, state: Status) -> WfResult<bool> {
