@@ -6,7 +6,5 @@
     "openapi",
     "plpgsql",
     "thiserror"
-  ],
-  "sql-formatter.dialect": "pl/sql",
-  "sql-formatter.uppercase": true,
+  ]
 }

@@ -304,34 +304,15 @@ impl StatesBackend for PostgresBackend {
         timestamp: TimeStamp,
         task_parameter_sets: &[&ParameterSet],
     ) -> WfResult<Vec<Id>> {
-        // check that the associated job exists and is in the running state
-        let job_state = match self.job_state(job_id).await? {
-            Some(state) => state,
-            None => return Err(Error::JobNotFound(*job_id)),
-        };
-
-        if job_state.status != Status::Running {
-            return Err(Error::JobNotRunning(*job_id));
-        }
-
-        let job_stage = job_state.stage as i32;
-
-        // prepare the insert statements
+        // insert tasks into the database
         let client = self.get_client().await?;
-        let insert_task_statement = client
-            .prepare("INSERT INTO tasks (job_id, task_id, task_type, job_stage, task_state, task_parameters, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)")
-            .await
-            .map_err(|e| Error::DBError(Box::new(e)))?;
-        let insert_task_update_statement = client
-            .prepare(
-                "INSERT INTO tasks_updates (task_id, task_state, updated_at) VALUES ($1, $2, $3)",
-            )
+        let stmt: tokio_postgres::Statement = client
+            .prepare("SELECT create_task($1, $2, $3, $4, $5);")
             .await
             .map_err(|e| Error::DBError(Box::new(e)))?;
 
         // insert the tasks into the database
         let mut task_ids = Vec::with_capacity(task_parameter_sets.len());
-        let task_state = i32::from(Status::NotStarted);
         for task_parameter_set in task_parameter_sets.iter() {
             let task_id = Id::new();
             task_ids.push(task_id);
@@ -348,40 +329,34 @@ impl StatesBackend for PostgresBackend {
             };
 
             // insert the task into the DB
-            if let Err(err) = client
-                .execute(
-                    &insert_task_statement,
+            let row = client
+                .query_one(
+                    &stmt,
                     &[
                         &job_id.into_inner(),
                         &task_id.into_inner(),
                         &task_type,
-                        &job_stage,
-                        &task_state,
                         &task_parameters,
                         &timestamp,
                     ],
                 )
                 .await
-            {
-                match err.code().cloned() {
-                    Some(SqlState::UNIQUE_VIOLATION) => {
-                        return Err(Error::InternalError(format!(
-                            "Task with id {} already exists, error in id generation",
-                            task_id
-                        )));
-                    }
-                    _ => return Err(Error::DBError(Box::new(err))),
-                }
-            }
-
-            // insert task update into the DB
-            client
-                .execute(
-                    &insert_task_update_statement,
-                    &[&task_id.into_inner(), &task_state, &timestamp],
-                )
-                .await
                 .map_err(|e| Error::DBError(Box::new(e)))?;
+
+            // evaluate the return code of the function
+            let ret_code: i32 = row.get(0);
+            match ret_code {
+                0 => {}
+                1 => return Err(Error::JobNotFound(*job_id)),
+                2 => {
+                    return Err(Error::InternalError(format!(
+                        "Task {} already exists",
+                        task_id
+                    )))
+                }
+                3 => return Err(Error::JobNotRunning(*job_id)),
+                _ => return Err(Error::InternalError("Unknown return code".to_string())),
+            }
         }
 
         Ok(task_ids)
