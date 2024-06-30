@@ -425,10 +425,7 @@ impl StatesBackend for PostgresBackend {
     async fn num_active_tasks(&self, job_id: &Id) -> WfResult<usize> {
         let client = self.get_client().await?;
         let row = client
-            .query_1(
-                "SELECT COUNT(*) FROM tasks WHERE job_id = $1 AND task_state IN (0, 1, 2)",
-                &[&job_id.into_inner()],
-            )
+            .query_1("SELECT num_active_tasks($1)", &[&job_id.into_inner()])
             .await?;
 
         let count: i64 = row.get(0);

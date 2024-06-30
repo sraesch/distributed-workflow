@@ -190,3 +190,14 @@ VALUES
 END;
 
 $$ LANGUAGE plpgsql;
+
+-- Returns the number of active tasks for the specified job_id
+CREATE
+OR REPLACE FUNCTION num_active_tasks(job_id UUID) RETURNS BIGINT AS $$
+SELECT
+    COUNT(*) AS num_active_tasks
+FROM
+    tasks
+WHERE
+    job_id = num_active_tasks.job_id
+    AND task_state IN (0, 1, 2) $$ LANGUAGE SQL;
