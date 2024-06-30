@@ -258,4 +258,15 @@ pub trait StatesBackend: Send + Sync {
     /// # Arguments
     /// * `task_id` - The id of the task.
     fn task_state(&self, task_id: &Id) -> impl Future<Output = Result<Option<Status>>> + Send;
+
+    /// Returns the summary of the tasks of the job with the given id and stage.
+    ///
+    /// # Arguments
+    /// * `job_id` - The id of the job.
+    /// * `stage` - The job stage of the tasks.
+    fn job_stage_tasks(
+        &self,
+        job_id: &Id,
+        stage: usize,
+    ) -> impl Future<Output = Result<TaskSummary>> + Send;
 }

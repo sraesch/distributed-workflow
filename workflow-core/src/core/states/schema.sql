@@ -250,3 +250,54 @@ CREATE OR REPLACE FUNCTION get_job_details(in_job_id uuid)
 $$
 LANGUAGE SQL;
 
+-- Returns the tasks summary for the specified job in the specified stage.
+CREATE OR REPLACE FUNCTION get_job_stage_tasks_summary(in_job_id uuid, in_job_stage integer)
+    RETURNS TABLE(
+        total_count bigint,
+        not_started_count bigint,
+        queued_count bigint,
+        running_count bigint,
+        finished_count bigint,
+        failed_count bigint
+    )
+    AS $$
+    SELECT
+        COUNT(*) AS total_count,
+        SUM(
+            CASE WHEN t.task_state = 0 THEN
+                1
+            ELSE
+                0
+            END) AS not_started_count,
+        SUM(
+            CASE WHEN t.task_state = 1 THEN
+                1
+            ELSE
+                0
+            END) AS queued_count,
+        SUM(
+            CASE WHEN t.task_state = 2 THEN
+                1
+            ELSE
+                0
+            END) AS running_count,
+        SUM(
+            CASE WHEN t.task_state = 3 THEN
+                1
+            ELSE
+                0
+            END) AS finished_count,
+        SUM(
+            CASE WHEN t.task_state = 4 THEN
+                1
+            ELSE
+                0
+            END) AS failed_count
+    FROM
+        tasks t
+    WHERE
+        t.job_id = get_job_stage_tasks_summary.in_job_id
+        AND t.job_stage = get_job_stage_tasks_summary.in_job_stage;
+$$
+LANGUAGE SQL;
+

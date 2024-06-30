@@ -143,6 +143,17 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
         job_ids.push(job_id);
     }
 
+    // briefly check stage task summary
+    for job_id in job_ids.iter() {
+        let task_summary = backend.job_stage_tasks(job_id, 0).await.unwrap();
+        assert_eq!(task_summary.total_count, 0);
+        assert_eq!(task_summary.not_started_count, 0);
+        assert_eq!(task_summary.queued_count, 0);
+        assert_eq!(task_summary.running_count, 0);
+        assert_eq!(task_summary.finished_count, 0);
+        assert_eq!(task_summary.failed_count, 0);
+    }
+
     // check that the total number of jobs is 4
     let list_jobs = backend.list_jobs(0, 10).await.unwrap();
     assert_eq!(list_jobs.total_count, 4);
@@ -307,6 +318,19 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
         }
     }
 
+    // briefly check stage task summary
+    for (job_id, test_job) in job_ids.iter().zip(test_jobs.iter()) {
+        let total_num_tasks = test_job.tasks.first().unwrap().input_sets.len() as u64;
+
+        let task_summary = backend.job_stage_tasks(job_id, 0).await.unwrap();
+        assert_eq!(task_summary.total_count, total_num_tasks);
+        assert_eq!(task_summary.not_started_count, total_num_tasks);
+        assert_eq!(task_summary.queued_count, 0);
+        assert_eq!(task_summary.running_count, 0);
+        assert_eq!(task_summary.finished_count, 0);
+        assert_eq!(task_summary.failed_count, 0);
+    }
+
     // switch the state of the tasks to running
     for task_ids in created_tasks.values() {
         for task_id in task_ids.keys() {
@@ -315,6 +339,19 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
                 .await
                 .unwrap());
         }
+    }
+
+    // briefly check stage task summary
+    for (job_id, test_job) in job_ids.iter().zip(test_jobs.iter()) {
+        let total_num_tasks = test_job.tasks.first().unwrap().input_sets.len() as u64;
+
+        let task_summary = backend.job_stage_tasks(job_id, 0).await.unwrap();
+        assert_eq!(task_summary.total_count, total_num_tasks);
+        assert_eq!(task_summary.not_started_count, 0);
+        assert_eq!(task_summary.queued_count, 0);
+        assert_eq!(task_summary.running_count, total_num_tasks);
+        assert_eq!(task_summary.finished_count, 0);
+        assert_eq!(task_summary.failed_count, 0);
     }
 
     // now switch the state of the tasks to finished
@@ -328,6 +365,19 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
                 i + 1 == task_ids.len()
             );
         }
+    }
+
+    // briefly check stage task summary
+    for (job_id, test_job) in job_ids.iter().zip(test_jobs.iter()) {
+        let total_num_tasks = test_job.tasks.first().unwrap().input_sets.len() as u64;
+
+        let task_summary = backend.job_stage_tasks(job_id, 0).await.unwrap();
+        assert_eq!(task_summary.total_count, total_num_tasks);
+        assert_eq!(task_summary.not_started_count, 0);
+        assert_eq!(task_summary.queued_count, 0);
+        assert_eq!(task_summary.running_count, 0);
+        assert_eq!(task_summary.finished_count, total_num_tasks);
+        assert_eq!(task_summary.failed_count, 0);
     }
 
     // check the jobs

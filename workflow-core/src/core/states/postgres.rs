@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::{
     Error, Id, JobDetails, JobList, JobListEntry, JobState, JobTasks, ParameterSet,
-    Result as WfResult, Secret, StatesBackend, Status, TaskListEntry, TimeStamp,
+    Result as WfResult, Secret, StatesBackend, Status, TaskListEntry, TaskSummary, TimeStamp,
 };
 
 /// Postgres based implementation of the state backend.
@@ -457,6 +457,35 @@ impl StatesBackend for PostgresBackend {
             }
             None => Ok(None),
         }
+    }
+
+    async fn job_stage_tasks(&self, job_id: &Id, stage: usize) -> WfResult<TaskSummary> {
+        let client = self.get_client().await?;
+
+        let stage = stage as i32;
+
+        let row = client
+            .query_1(
+                "SELECT * FROM get_job_stage_tasks_summary($1, $2)",
+                &[&job_id.into_inner(), &stage],
+            )
+            .await?;
+
+        let total_count: i64 = row.get(0);
+        let not_started_count: Option<i64> = row.get(1);
+        let queued_count: Option<i64> = row.get(2);
+        let running_count: Option<i64> = row.get(3);
+        let finished_count: Option<i64> = row.get(4);
+        let failed_count: Option<i64> = row.get(5);
+
+        Ok(TaskSummary {
+            total_count: total_count as u64,
+            not_started_count: not_started_count.unwrap_or_default() as u64,
+            queued_count: queued_count.unwrap_or_default() as u64,
+            running_count: running_count.unwrap_or_default() as u64,
+            finished_count: finished_count.unwrap_or_default() as u64,
+            failed_count: failed_count.unwrap_or_default() as u64,
+        })
     }
 }
 
