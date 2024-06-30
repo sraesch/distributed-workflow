@@ -175,32 +175,39 @@ pub trait StatesBackend: Send + Sync {
     /// Registers the given tasks. The tasks are initially in the not started state.
     /// Returns an error if either
     /// - the job with the given id was not found or
-    /// - the task ids are not unique or
     /// - the job is not in the running state.
+    /// The function returns the ids of the inserted tasks.
     ///
     /// # Arguments
     /// * `job_id` - The id of the owning job.
-    /// * `task_ids` - The ids of the tasks.
+    /// * `task_type` - The type of the tasks.
     /// * `timestamp` - The timestamp when the tasks were created.
-    fn new_tasks_with_timestamp(
+    /// * `task_parameter_sets` - The input parameter sets for the tasks to insert.
+    fn register_new_tasks_with_timestamp(
         &self,
         job_id: &Id,
-        task_ids: &[Id],
+        task_type: &str,
         timestamp: TimeStamp,
-    ) -> impl Future<Output = Result<()>> + Send;
+        task_parameter_sets: &[&ParameterSet],
+    ) -> impl Future<Output = Result<Vec<Id>>> + Send;
 
     /// Registers the given tasks. The tasks are initially in the not started state.
     /// Returns an error if either
     /// - the job with the given id was not found or
-    /// - the task ids are not unique or
     /// - the job is not in the running state.
     ///
     /// # Arguments
     /// * `job_id` - The id of the owning job.
-    /// * `task_ids` - The ids of the tasks.
-    fn new_tasks(&self, job_id: &Id, task_ids: &[Id]) -> impl Future<Output = Result<()>> + Send {
+    /// * `task_type` - The type of the tasks.
+    /// * `task_parameter_sets` - The input parameter sets for the tasks to insert.
+    fn register_new_tasks(
+        &self,
+        job_id: &Id,
+        task_type: &str,
+        task_parameter_sets: &[&ParameterSet],
+    ) -> impl Future<Output = Result<Vec<Id>>> + Send {
         let timestamp = chrono::Local::now();
-        self.new_tasks_with_timestamp(job_id, task_ids, timestamp)
+        self.register_new_tasks_with_timestamp(job_id, task_type, timestamp, task_parameter_sets)
     }
 
     /// Updates the state of a task and also decrements the number of queued tasks in the owning

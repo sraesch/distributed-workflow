@@ -8,8 +8,8 @@ use tokio_postgres::{error::SqlState, NoTls, Row};
 use uuid::Uuid;
 
 use crate::{
-    Error, Id, JobDetails, JobList, JobListEntry, JobState, JobTasks, Result as WfResult, Secret,
-    StatesBackend, Status, TimeStamp,
+    Error, Id, JobDetails, JobList, JobListEntry, JobState, JobTasks, ParameterSet,
+    Result as WfResult, Secret, StatesBackend, Status, TimeStamp,
 };
 
 /// Postgres based implementation of the state backend.
@@ -207,8 +207,24 @@ impl StatesBackend for PostgresBackend {
         limit: u64,
         stage: Option<usize>,
     ) -> WfResult<JobTasks> {
+        let client = self.get_client().await?;
+
+        let offset = offset as i64;
+        let limit = limit as i64;
+        let rows = client
+            .query_n(
+                "SELECT task_id, task_state, created_at, MAX(updated_at)
+                        FROM tasks, tasks_updates
+                        WHERE job_id = $1
+                        GROUP BY task_id
+                        ORDER BY created_at
+                        OFFSET $2 LIMIT $3;",
+                &[&job_id.into_inner(), &offset, &limit],
+            )
+            .await?;
+
         todo!()
-        // let client = self.get_client().await?;
+
         // let stmt = client
         //     .prepare(
         //         "SELECT t.task_id, t.task_state, t.created_at, MAX(u.updated_at)
@@ -299,13 +315,14 @@ impl StatesBackend for PostgresBackend {
         Ok(())
     }
 
-    async fn new_tasks_with_timestamp(
+    async fn register_new_tasks_with_timestamp(
         &self,
         job_id: &Id,
-        task_ids: &[Id],
+        task_type: &str,
         timestamp: TimeStamp,
-    ) -> WfResult<()> {
-        // check that the associated job is running
+        task_parameter_sets: &[&ParameterSet],
+    ) -> WfResult<Vec<Id>> {
+        // check that the associated job exists and is in the running state
         let job_state = match self.job_state(job_id).await? {
             Some(state) => state,
             None => return Err(Error::JobNotFound(*job_id)),
@@ -318,7 +335,7 @@ impl StatesBackend for PostgresBackend {
         // prepare the insert statements
         let client = self.get_client().await?;
         let insert_task_statement = client
-            .prepare("INSERT INTO tasks (job_id, task_id, task_state, created_at) VALUES ($1, $2, $3, $4)")
+            .prepare("INSERT INTO tasks (job_id, task_id, task_type, task_state, task_parameters, created_at) VALUES ($1, $2, $3, $4, $5, $6)")
             .await
             .map_err(|e| Error::DBError(Box::new(e)))?;
         let insert_task_update_statement = client
@@ -329,15 +346,33 @@ impl StatesBackend for PostgresBackend {
             .map_err(|e| Error::DBError(Box::new(e)))?;
 
         // insert the tasks into the database
+        let mut task_ids = Vec::with_capacity(task_parameter_sets.len());
         let task_state = i32::from(Status::NotStarted);
-        for task_id in task_ids {
+        for task_parameter_set in task_parameter_sets.iter() {
+            let task_id = Id::new();
+            task_ids.push(task_id);
+
+            // encode the parameter set as json
+            let task_parameters = match serde_json::to_value(task_parameter_set) {
+                Ok(json) => json,
+                Err(e) => {
+                    return Err(Error::InternalError(format!(
+                        "Failed to serialize task parameters: {}",
+                        e
+                    )))
+                }
+            };
+
+            // insert the task into the DB
             if let Err(err) = client
                 .execute(
                     &insert_task_statement,
                     &[
                         &job_id.into_inner(),
                         &task_id.into_inner(),
+                        &task_type,
                         &task_state,
+                        &task_parameters,
                         &timestamp,
                     ],
                 )
@@ -345,12 +380,16 @@ impl StatesBackend for PostgresBackend {
             {
                 match err.code().cloned() {
                     Some(SqlState::UNIQUE_VIOLATION) => {
-                        return Err(Error::TaskIdNotUnique(*task_id));
+                        return Err(Error::InternalError(format!(
+                            "Task with id {} already exists, error in id generation",
+                            Id::from(task_id)
+                        )));
                     }
                     _ => return Err(Error::DBError(Box::new(err))),
                 }
             }
 
+            // insert task update into the DB
             client
                 .execute(
                     &insert_task_update_statement,
@@ -360,7 +399,7 @@ impl StatesBackend for PostgresBackend {
                 .map_err(|e| Error::DBError(Box::new(e)))?;
         }
 
-        Ok(())
+        Ok(task_ids)
     }
 
     async fn update_task_state(&self, task_id: &Id, state: Status) -> WfResult<bool> {

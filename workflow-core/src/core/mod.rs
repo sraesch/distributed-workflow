@@ -14,6 +14,24 @@ pub type TimeStamp = chrono::DateTime<chrono::Local>;
 /// A set of input parameters for a job or task consisting of key-value pairs.
 pub type ParameterSet = std::collections::HashMap<String, String>;
 
+/// A convenient trait for creating a parameter set from a list of key-value pairs.
+pub trait ToParameterSet {
+    fn to_params(self) -> ParameterSet;
+}
+
+impl<I, K, V> ToParameterSet for I
+where
+    I: IntoIterator<Item = (K, V)>,
+    K: ToString,
+    V: ToString,
+{
+    fn to_params(self) -> ParameterSet {
+        self.into_iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect()
+    }
+}
+
 /// The status of a job or task.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Eq, PartialOrd, Ord)]
 pub enum Status {

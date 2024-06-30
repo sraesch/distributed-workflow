@@ -35,9 +35,6 @@ pub enum Error {
 
     #[error("Job not running: {0}")]
     JobNotRunning(Id),
-
-    #[error("Task already exists: {0}")]
-    TaskIdNotUnique(Id),
 }
 
 /// The result type used in this crate.
