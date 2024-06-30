@@ -187,7 +187,45 @@ impl StatesBackend for PostgresBackend {
     }
 
     async fn job(&self, job_id: &Id) -> WfResult<Option<JobDetails>> {
-        todo!()
+        let client = self.get_client().await?;
+
+        let row = client
+            .query_0_or_1("SELECT * FROM get_job_details($1)", &[&job_id.into_inner()])
+            .await?;
+
+        let row = match row {
+            Some(row) => row,
+            None => return Ok(None),
+        };
+
+        let job_id: Uuid = row.get(0);
+        let job_id = Id::from(job_id);
+        let status: i32 = row.get(1);
+        let status = Status::try_from(status)?;
+        let stage: i32 = row.get(2);
+        let stage = stage as usize;
+        let job_type: String = row.get(3);
+        let created_at: DateTime<Local> = row.get(4);
+        let updated_at: DateTime<Local> = row.get(5);
+        let input_parameters: serde_json::Value = row.get(6);
+        let input_parameters: ParameterSet = match serde_json::from_value(input_parameters) {
+            Ok(parameters) => parameters,
+            Err(e) => {
+                return Err(Error::InternalError(format!(
+                    "Failed to deserialize input parameters: {}",
+                    e
+                )))
+            }
+        };
+
+        Ok(Some(JobDetails {
+            job_id,
+            job_state: JobState { status, stage },
+            job_type,
+            created_at,
+            updated_at,
+            input: input_parameters,
+        }))
     }
 
     async fn job_tasks(

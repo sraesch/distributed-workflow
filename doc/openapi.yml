@@ -161,36 +161,6 @@ paths:
                     type: integer
                     minimum: 0
                     description: The current stage of the job. Only applicable for running jobs
-                  tasks_summary:
-                    type: array
-                    description: A summary of the tasks for each stage. The array index is the stage
-                    items:
-                      type: object
-                      properties:
-                        total_count:
-                          type: integer
-                          minimum: 0
-                          description: The total number of tasks for the stage
-                        not_started_count:
-                          type: integer
-                          minimum: 0
-                          description: The number of tasks in the not started state
-                        queued_count:
-                          type: integer
-                          minimum: 0
-                          description: The number of tasks in the queued state
-                        running_count:
-                          type: integer
-                          minimum: 0
-                          description: The number of tasks in the running state
-                        finished_count:
-                          type: integer
-                          minimum: 0
-                          description: The number of tasks in the finished state
-                        failed_count:
-                          type: integer
-                          minimum: 0
-                          description: The number of tasks in the failed state
                   created_at:
                     type: string
                     format: date-time

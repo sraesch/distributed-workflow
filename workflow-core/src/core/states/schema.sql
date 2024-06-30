@@ -219,3 +219,34 @@ END;
 $$
 LANGUAGE plpgsql;
 
+-- Get the details for the specified job.
+CREATE OR REPLACE FUNCTION get_job_details(in_job_id uuid)
+    RETURNS TABLE(
+        job_id uuid,
+        job_state integer,
+        job_stage integer,
+        job_type varchar(255),
+        created_at timestamp with time zone,
+        updated_at timestamp with time zone,
+        input_parameters jsonb
+    )
+    AS $$
+    SELECT
+        j.job_id,
+        j.job_state,
+        j.job_stage,
+        j.job_type,
+        j.created_at,
+        MAX(u.updated_at),
+        j.job_parameters
+    FROM
+        jobs j,
+        jobs_updates u
+    WHERE
+        j.job_id = get_job_details.in_job_id
+        AND j.job_id = u.job_id
+    GROUP BY
+        j.job_id;
+$$
+LANGUAGE SQL;
+

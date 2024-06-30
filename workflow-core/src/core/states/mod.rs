@@ -22,8 +22,6 @@ pub struct JobDetails {
     pub job_id: Id,
     pub job_type: String,
     pub job_state: JobState,
-    pub stage: usize,
-    pub tasks_summary: TaskSummary,
     pub created_at: TimeStamp,
     pub updated_at: TimeStamp,
     pub input: ParameterSet,

@@ -329,6 +329,15 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
             );
         }
     }
+
+    // check the jobs
+    for (job_id, test_job) in job_ids.iter().zip(test_jobs.iter()) {
+        let job = backend.job(job_id).await.unwrap().unwrap();
+        assert_eq!(job.created_at, test_job.created_at);
+        assert_eq!(job.input, test_job.input);
+        assert_eq!(job.job_type, test_job.job_type);
+        assert_eq!(job.job_state.stage, 0);
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]
