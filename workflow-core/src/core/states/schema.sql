@@ -110,7 +110,7 @@ END;
 $$
 LANGUAGE plpgsql;
 
--- Function to create a task. Returns TRUE if the task was created successfully and FALSE otherwise.
+-- Function to create a task.
 -- Returns 0 on success and one of the following error codes on failure:
 -- 1: The job_id does not exist
 -- 2: The task_id already exists
@@ -168,4 +168,54 @@ CREATE OR REPLACE FUNCTION num_active_tasks(job_id uuid)
         AND task_state IN(0, 1, 2)
 $$
 LANGUAGE SQL;
+
+-- Function for updating the state of a task. Returns one of the following return codes:
+-- -2: The new task state is invalid
+-- -1: The task_id does not exist
+-- 0: Success and the corresponding job stage is finished
+-- 1: Success and the corresponding job stage is not finished
+CREATE OR REPLACE FUNCTION change_task_state(task_id uuid, task_state integer, updated_at timestamp with time zone)
+    RETURNS integer
+    AS $$
+DECLARE
+    var_job_id uuid;
+    var_task_state integer;
+BEGIN
+    -- get the current state of the task and the job_id
+    SELECT
+        t.job_id,
+        t.task_state INTO var_job_id,
+        var_task_state
+    FROM
+        tasks t
+    WHERE
+        t.task_id = change_task_state.task_id;
+    IF NOT FOUND THEN
+        RETURN -1;
+    END IF;
+    -- check if the state switch is invalid. This is either the case when
+    -- (a): the task is already done, i.e., state 3 or 4
+    -- (b): the new state less or equal to the current state
+    IF var_task_state IN (3, 4) OR task_state <= var_task_state THEN
+        RETURN -2;
+    END IF;
+    -- now update the task and insert into the tasks_updates table
+    UPDATE
+        tasks AS t
+    SET
+        task_state = change_task_state.task_state
+    WHERE
+        t.task_id = change_task_state.task_id;
+    -- insert into the tasks_updates table
+    INSERT INTO tasks_updates(task_id, task_state, updated_at)
+        VALUES (task_id, task_state, updated_at);
+    -- returns 1 if num_active_tasks is greater than 0, 0 otherwise
+    IF num_active_tasks(var_job_id) > 0 THEN
+        RETURN 1;
+    ELSE
+        RETURN 0;
+    END IF;
+END;
+$$
+LANGUAGE plpgsql;
 

@@ -269,6 +269,66 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
             assert_eq!(task_status, Status::NotStarted);
         }
     }
+
+    // try to switch the state of an unknown task
+    match backend
+        .update_task_state(&Id::default(), Status::Running)
+        .await
+    {
+        Ok(_) => panic!("Switching the state of an unknown task should fail"),
+        Err(Error::TaskNotFound { .. }) => {}
+        Err(e) => {
+            panic!(
+                "Switching the state of an unknown task should return TaskNotFound error, but got {:?}",
+                e
+            );
+        }
+    }
+
+    // try to switch the state of a task to an invalid state
+    let some_task_id = *created_tasks
+        .values()
+        .next()
+        .unwrap()
+        .keys()
+        .next()
+        .unwrap();
+    match backend
+        .update_task_state(&some_task_id, Status::NotStarted)
+        .await
+    {
+        Ok(_) => panic!("Switching the state of a task to an invalid state should fail"),
+        Err(Error::TaskInvalidStateSwitch { .. }) => {}
+        Err(e) => {
+            panic!(
+                "Switching the state of a task to an invalid state should return TaskInvalidStateSwitch error, but got {:?}",
+                e
+            );
+        }
+    }
+
+    // switch the state of the tasks to running
+    for task_ids in created_tasks.values() {
+        for task_id in task_ids.keys() {
+            assert!(!backend
+                .update_task_state(task_id, Status::Running)
+                .await
+                .unwrap());
+        }
+    }
+
+    // now switch the state of the tasks to finished
+    for task_ids in created_tasks.values() {
+        for (i, task_id) in task_ids.keys().enumerate() {
+            assert_eq!(
+                backend
+                    .update_task_state(task_id, Status::Finished)
+                    .await
+                    .unwrap(),
+                i + 1 == task_ids.len()
+            );
+        }
+    }
 }
 
 #[tokio::test(flavor = "multi_thread")]

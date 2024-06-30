@@ -222,11 +222,32 @@ pub trait StatesBackend: Send + Sync {
     /// # Arguments
     /// * `task_id` - The id of the task.
     /// * `state` - The new state of the task.
+    /// * `update_timestamp` - The timestamp when the task was updated.
+    fn update_task_state_with_timestamp(
+        &self,
+        task_id: &Id,
+        state: Status,
+        update_timestamp: TimeStamp,
+    ) -> impl Future<Output = Result<bool>> + Send;
+
+    /// Updates the state of a task and also decrements the number of queued tasks in the owning
+    /// job if the task is finished or failed. Returns true if the current stage of the job is
+    /// finished.
+    /// Returns an error if either
+    /// - the task with the given id was not found or
+    /// - the corresponding job is not in the running state.
+    ///
+    /// # Arguments
+    /// * `task_id` - The id of the task.
+    /// * `state` - The new state of the task.
     fn update_task_state(
         &self,
         task_id: &Id,
         state: Status,
-    ) -> impl std::future::Future<Output = Result<bool>> + Send;
+    ) -> impl Future<Output = Result<bool>> + Send {
+        let update_timestamp = chrono::Local::now();
+        self.update_task_state_with_timestamp(task_id, state, update_timestamp)
+    }
 
     /// Returns the number of tasks for the given job that nor net finished or failed.
     ///

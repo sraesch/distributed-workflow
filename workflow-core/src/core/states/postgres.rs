@@ -4,7 +4,7 @@ use chrono::{DateTime, Local};
 use deadpool_postgres::{Config, Pool};
 use log::{error, info, trace};
 use serde::Deserialize;
-use tokio_postgres::{error::SqlState, NoTls, Row};
+use tokio_postgres::{NoTls, Row};
 use uuid::Uuid;
 
 use crate::{
@@ -362,39 +362,33 @@ impl StatesBackend for PostgresBackend {
         Ok(task_ids)
     }
 
-    async fn update_task_state(&self, task_id: &Id, state: Status) -> WfResult<bool> {
-        todo!()
-        // // try to get the current state of the task
-        // let cur_task_state = match self.task_state(task_id).await? {
-        //     Some(state) => state,
-        //     None => return Err(Error::TaskNotFound(*task_id)),
-        // };
+    async fn update_task_state_with_timestamp(
+        &self,
+        task_id: &Id,
+        state: Status,
+        update_timestamp: TimeStamp,
+    ) -> WfResult<bool> {
+        let client = self.get_client().await?;
 
-        // // check if the task switch is valid
-        // if cur_task_state.is_done() || cur_task_state >= state {
-        //     return Err(Error::TaskInvalidStateSwitch(
-        //         *task_id,
-        //         cur_task_state,
-        //         state,
-        //     ));
-        // }
+        let row = client
+            .query_1(
+                "SELECT change_task_state($1, $2, $3)",
+                &[&task_id.into_inner(), &i32::from(state), &update_timestamp],
+            )
+            .await?;
 
-        // let client = self.get_client().await?;
-        // let task_state = i32::from(state);
-        // let num_changes = client
-        //     .execute_statement(
-        //         "UPDATE tasks SET task_state = $1 WHERE task_id = $2",
-        //         &[&task_state, &task_id.into_inner()],
-        //     )
-        //     .await?;
+        let ret_code: i32 = row.get(0);
 
-        // if num_changes == 0 {
-        //     return Err(Error::TaskNotFound(*task_id));
-        // }
-
-        // let num_active_tasks = self.num_active_tasks(job_id).await?;
-
-        // Ok(num_active_tasks == 0)
+        match ret_code {
+            -2 => Err(Error::TaskInvalidStateSwitch(*task_id, state)),
+            -1 => Err(Error::TaskNotFound(*task_id)),
+            0 => Ok(true),
+            1 => Ok(false),
+            _ => Err(Error::InternalError(format!(
+                "Unknown return code: {}",
+                ret_code
+            ))),
+        }
     }
 
     async fn num_active_tasks(&self, job_id: &Id) -> WfResult<usize> {

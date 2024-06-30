@@ -39,8 +39,8 @@ pub enum Error {
     #[error("Task not found: {0}")]
     TaskNotFound(Id),
 
-    #[error("Task {0} cannot be switched from state {1} to {2}")]
-    TaskInvalidStateSwitch(Id, Status, Status),
+    #[error("Task {0} cannot be switched into state {1}")]
+    TaskInvalidStateSwitch(Id, Status),
 }
 
 /// The result type used in this crate.

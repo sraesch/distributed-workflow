@@ -48,10 +48,7 @@ impl Status {
     /// Returns true if the status is either `Finished` or `Failed`.
     #[inline]
     pub fn is_done(self) -> bool {
-        match self {
-            Status::Finished | Status::Failed => true,
-            _ => false,
-        }
+        matches!(self, Status::Finished | Status::Failed)
     }
 }
 
