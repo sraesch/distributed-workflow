@@ -99,8 +99,6 @@ impl StatesBackend for PostgresBackend {
         parameters: std::collections::HashMap<String, String>,
     ) -> WfResult<Id> {
         let job_id = Id::new();
-        let job_state = i32::from(Status::NotStarted);
-        let job_stage = 0i32;
 
         // serialize the parameters to JSON
         let job_parameters = match serde_json::to_value(&parameters) {
@@ -115,17 +113,12 @@ impl StatesBackend for PostgresBackend {
 
         let client = self.get_client().await?;
 
-        client.execute_statement(
-            "INSERT INTO jobs (job_id, job_type, job_state, job_stage, job_parameters, created_at) VALUES ($1, $2, $3, $4, $5, $6)",
-            &[&job_id.into_inner(), &job_type, &job_state, &job_stage, &job_parameters, &timestamp],
-        )
-        .await?;
-
-        client.execute_statement(
-            "INSERT INTO jobs_updates (job_id, job_state, job_stage, updated_at) VALUES ($1, $2, $3, $4)",
-            &[&job_id.into_inner(), &job_state, &job_stage, &timestamp],
-        )
-        .await?;
+        client
+            .execute_statement(
+                "SELECT create_job($1, $2, $3, $4)",
+                &[&job_id.into_inner(), &job_type, &job_parameters, &timestamp],
+            )
+            .await?;
 
         Ok(job_id)
     }
@@ -158,12 +151,9 @@ impl StatesBackend for PostgresBackend {
 
         let offset = offset as i64;
         let limit = limit as i64;
-        let rows = client.query_n("SELECT j.job_id, j.job_state, j.job_stage, j.job_type, j.created_at, MAX(u.updated_at)
-                        FROM jobs j, jobs_updates u
-                        WHERE j.job_id = u.job_id
-                        GROUP BY j.job_id
-                        ORDER BY j.created_at
-                        OFFSET $1 LIMIT $2;", &[&offset, &limit]).await?;
+        let rows = client
+            .query_n("SELECT * FROM get_jobs($1, $2);", &[&offset, &limit])
+            .await?;
 
         let mut jobs = Vec::new();
         for row in rows {
@@ -285,23 +275,24 @@ impl StatesBackend for PostgresBackend {
         let new_status = i32::from(state.status);
         let new_stage = state.stage as i32;
 
-        let num_changes = client
-            .execute_statement(
-                "UPDATE jobs SET job_state = $1, job_stage = $2 WHERE job_id = $3",
-                &[&new_status, &new_stage, &job_id.into_inner()],
+        let anything_changed = client
+            .query_1(
+                "SELECT change_job_state($1, $2, $3, $4)",
+                &[
+                    &job_id.into_inner(),
+                    &new_status,
+                    &new_stage,
+                    &update_timestamp,
+                ],
             )
             .await?;
 
+        let anything_changed: bool = anything_changed.get(0);
+
         // if no rows were changed, the job was not found
-        if num_changes == 0 {
+        if !anything_changed {
             return Err(Error::JobNotFound(*job_id));
         }
-
-        // update the jobs_updates table
-        client.execute_statement(
-            "INSERT INTO jobs_updates (job_id, job_state, job_stage, updated_at) VALUES ($1, $2, $3, $4)",
-            &[&job_id.into_inner(), &new_status, &new_stage, &update_timestamp],
-        ).await?;
 
         Ok(())
     }
@@ -398,14 +389,70 @@ impl StatesBackend for PostgresBackend {
 
     async fn update_task_state(&self, task_id: &Id, state: Status) -> WfResult<bool> {
         todo!()
+        // // try to get the current state of the task
+        // let cur_task_state = match self.task_state(task_id).await? {
+        //     Some(state) => state,
+        //     None => return Err(Error::TaskNotFound(*task_id)),
+        // };
+
+        // // check if the task switch is valid
+        // if cur_task_state.is_done() || cur_task_state >= state {
+        //     return Err(Error::TaskInvalidStateSwitch(
+        //         *task_id,
+        //         cur_task_state,
+        //         state,
+        //     ));
+        // }
+
+        // let client = self.get_client().await?;
+        // let task_state = i32::from(state);
+        // let num_changes = client
+        //     .execute_statement(
+        //         "UPDATE tasks SET task_state = $1 WHERE task_id = $2",
+        //         &[&task_state, &task_id.into_inner()],
+        //     )
+        //     .await?;
+
+        // if num_changes == 0 {
+        //     return Err(Error::TaskNotFound(*task_id));
+        // }
+
+        // let num_active_tasks = self.num_active_tasks(job_id).await?;
+
+        // Ok(num_active_tasks == 0)
     }
 
     async fn num_active_tasks(&self, job_id: &Id) -> WfResult<usize> {
-        todo!()
+        let client = self.get_client().await?;
+        let row = client
+            .query_1(
+                "SELECT COUNT(*) FROM tasks WHERE job_id = $1 AND task_state IN (0, 1, 2)",
+                &[&job_id.into_inner()],
+            )
+            .await?;
+
+        let count: i64 = row.get(0);
+
+        Ok(count as usize)
     }
 
     async fn task_state(&self, task_id: &Id) -> WfResult<Option<Status>> {
-        todo!()
+        let client = self.get_client().await?;
+
+        let row = client
+            .query_0_or_1(
+                "SELECT task_state FROM tasks WHERE task_id = $1",
+                &[&task_id.into_inner()],
+            )
+            .await?;
+
+        match row {
+            Some(row) => {
+                let task_state: i32 = row.get(0);
+                Ok(Some(Status::try_from(task_state)?))
+            }
+            None => Ok(None),
+        }
     }
 }
 

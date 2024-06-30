@@ -2,7 +2,7 @@ use deadpool_postgres::{CreatePoolError, PoolError};
 use serde_yaml::Error as YamlError;
 use thiserror::Error;
 
-use crate::Id;
+use crate::{Id, Status};
 
 #[derive(Error, Debug)]
 pub enum Error {
@@ -35,6 +35,12 @@ pub enum Error {
 
     #[error("Job not running: {0}")]
     JobNotRunning(Id),
+
+    #[error("Task not found: {0}")]
+    TaskNotFound(Id),
+
+    #[error("Task {0} cannot be switched from state {1} to {2}")]
+    TaskInvalidStateSwitch(Id, Status, Status),
 }
 
 /// The result type used in this crate.

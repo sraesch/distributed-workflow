@@ -1,6 +1,8 @@
 mod id;
 mod states;
 
+use std::fmt::Display;
+
 pub use id::*;
 pub use states::*;
 
@@ -35,11 +37,22 @@ where
 /// The status of a job or task.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Eq, PartialOrd, Ord)]
 pub enum Status {
-    NotStarted,
-    Queued,
-    Running,
-    Finished,
-    Failed,
+    NotStarted = 0,
+    Queued = 1,
+    Running = 2,
+    Finished = 3,
+    Failed = 4,
+}
+
+impl Status {
+    /// Returns true if the status is either `Finished` or `Failed`.
+    #[inline]
+    pub fn is_done(self) -> bool {
+        match self {
+            Status::Finished | Status::Failed => true,
+            _ => false,
+        }
+    }
 }
 
 impl TryFrom<i32> for Status {
@@ -66,6 +79,20 @@ impl From<Status> for i32 {
             Status::Finished => 3,
             Status::Failed => 4,
         }
+    }
+}
+
+impl Display for Status {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let status = match self {
+            Status::NotStarted => "Not Started",
+            Status::Queued => "Queued",
+            Status::Running => "Running",
+            Status::Finished => "Finished",
+            Status::Failed => "Failed",
+        };
+
+        write!(f, "{}", status)
     }
 }
 

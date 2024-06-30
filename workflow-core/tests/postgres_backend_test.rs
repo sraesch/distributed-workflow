@@ -250,16 +250,23 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
         created_tasks.insert(*job_id, task_id_map);
     }
 
-    // check if the tasks were created correctly
+    // check if the tasks were created correctly and if the number of active tasks is correct
     for job_id in job_ids.iter() {
         let tasks = backend.job_tasks(job_id, 0, 10, None).await.unwrap();
         let task_ids = created_tasks.get(job_id).unwrap();
+
+        let num_active = backend.num_active_tasks(job_id).await.unwrap();
+        assert_eq!(num_active, task_ids.len());
 
         assert_eq!(tasks.total_count, task_ids.len() as u64);
 
         for task in tasks.tasks.iter() {
             assert!(task_ids.contains_key(&task.task_id));
             assert_eq!(task.stage, 0);
+
+            // make sure the state of the task is not started
+            let task_status = backend.task_state(&task.task_id).await.unwrap().unwrap();
+            assert_eq!(task_status, Status::NotStarted);
         }
     }
 }
