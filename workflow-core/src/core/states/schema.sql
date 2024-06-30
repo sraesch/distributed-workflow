@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS tasks (
     task_id UUID PRIMARY KEY,
     job_id UUID REFERENCES jobs(job_id),
     task_type VARCHAR(255) NOT NULL,
+    job_stage INTEGER NULL,
     -- Is a redundant column, but is used for faster querying
     task_state INTEGER NOT NULL,
     task_parameters JSONB NOT NULL,

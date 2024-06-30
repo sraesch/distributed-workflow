@@ -181,6 +181,7 @@ pub trait StatesBackend: Send + Sync {
     /// # Arguments
     /// * `job_id` - The id of the owning job.
     /// * `task_type` - The type of the tasks.
+    /// * `job_stage` - The stage of the job to which the tasks belong.
     /// * `timestamp` - The timestamp when the tasks were created.
     /// * `task_parameter_sets` - The input parameter sets for the tasks to insert.
     fn register_new_tasks_with_timestamp(
@@ -199,6 +200,7 @@ pub trait StatesBackend: Send + Sync {
     /// # Arguments
     /// * `job_id` - The id of the owning job.
     /// * `task_type` - The type of the tasks.
+    /// * `job_stage` - The stage of the job to which the tasks belong.
     /// * `task_parameter_sets` - The input parameter sets for the tasks to insert.
     fn register_new_tasks(
         &self,

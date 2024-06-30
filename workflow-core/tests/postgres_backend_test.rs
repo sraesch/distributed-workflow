@@ -16,7 +16,8 @@ struct JobTestData {
     job_type: String,
     created_at: workflow_core::TimeStamp,
     input: workflow_core::ParameterSet,
-    tasks: Tasks,
+    /// The tasks that are part of the job for the respective job stages
+    tasks: Vec<Tasks>,
 }
 
 /// Create a list of test jobs.
@@ -30,24 +31,38 @@ fn create_list_of_test_jobs() -> Vec<JobTestData> {
             job_type: search_job_type.to_string(),
             created_at: TimeStamp::from_str("2020-03-12 13:12:41 +01:00").unwrap(),
             input: Default::default(),
-            tasks: Tasks {
-                created_at: TimeStamp::from_str("2020-03-12 13:13:00 +01:00").unwrap(),
-                task_type: "search".to_string(),
-                input_sets: vec![
-                    [("key", "foobar")].to_params(),
-                    [("key", "foobar2")].to_params(),
-                ],
-            },
+            tasks: vec![
+                Tasks {
+                    created_at: TimeStamp::from_str("2020-03-12 13:13:00 +01:00").unwrap(),
+                    task_type: "search".to_string(),
+                    input_sets: vec![
+                        [("key", "foobar")].to_params(),
+                        [("key", "foobar2")].to_params(),
+                    ],
+                },
+                Tasks {
+                    created_at: TimeStamp::from_str("2020-03-12 13:14:10 +01:00").unwrap(),
+                    task_type: "report".to_string(),
+                    input_sets: vec![],
+                },
+            ],
         },
         JobTestData {
             job_type: search_job_type.to_string(),
             created_at: TimeStamp::from_str("2020-03-12 13:13:15 +01:00").unwrap(),
             input: Default::default(),
-            tasks: Tasks {
-                created_at: TimeStamp::from_str("2020-03-12 13:14:00 +01:00").unwrap(),
-                task_type: "collect".to_string(),
-                input_sets: vec![ParameterSet::new()],
-            },
+            tasks: vec![
+                Tasks {
+                    created_at: TimeStamp::from_str("2020-03-12 13:14:00 +01:00").unwrap(),
+                    task_type: "search".to_string(),
+                    input_sets: vec![[("key", "42")].to_params()],
+                },
+                Tasks {
+                    created_at: TimeStamp::from_str("2020-03-12 13:14:10 +01:00").unwrap(),
+                    task_type: "report".to_string(),
+                    input_sets: vec![],
+                },
+            ],
         },
         // add some jobs of the type compress
         JobTestData {
@@ -57,13 +72,20 @@ fn create_list_of_test_jobs() -> Vec<JobTestData> {
                 ("input_files".to_string(), "file1.txt".to_string()),
                 ("compression_level".to_string(), "9".to_string()),
             ]),
-            tasks: Tasks {
-                created_at: TimeStamp::from_str("2020-03-13 14:02:00 +01:00").unwrap(),
-                task_type: "compress".to_string(),
-                input_sets: vec![
-                    [("input_file", "file1.txt"), ("compression_level", "9")].to_params()
-                ],
-            },
+            tasks: vec![
+                Tasks {
+                    created_at: TimeStamp::from_str("2020-03-13 14:02:00 +01:00").unwrap(),
+                    task_type: "compress".to_string(),
+                    input_sets: vec![
+                        [("input_file", "file1.txt"), ("compression_level", "9")].to_params()
+                    ],
+                },
+                Tasks {
+                    created_at: TimeStamp::from_str("2020-03-13 14:03:00 +01:00").unwrap(),
+                    task_type: "send".to_string(),
+                    input_sets: vec![[("url", "https://foobar.blub")].to_params()],
+                },
+            ],
         },
         JobTestData {
             job_type: compress_job_type.to_string(),
@@ -75,16 +97,23 @@ fn create_list_of_test_jobs() -> Vec<JobTestData> {
                 ),
                 ("compression_level".to_string(), "8".to_string()),
             ]),
-            tasks: Tasks {
-                created_at: TimeStamp::from_str("2020-03-13 14:12:00 +01:00").unwrap(),
-                task_type: "compress".to_string(),
-                input_sets: vec![
-                    [("input_file", "file2.txt"), ("compression_level", "8")].to_params(),
-                    [("input_file", "file3.txt"), ("compression_level", "8")].to_params(),
-                    [("input_file", "file4.txt"), ("compression_level", "8")].to_params(),
-                    [("input_file", "file5.txt"), ("compression_level", "8")].to_params(),
-                ],
-            },
+            tasks: vec![
+                Tasks {
+                    created_at: TimeStamp::from_str("2020-03-13 14:12:00 +01:00").unwrap(),
+                    task_type: "compress".to_string(),
+                    input_sets: vec![
+                        [("input_file", "file2.txt"), ("compression_level", "8")].to_params(),
+                        [("input_file", "file3.txt"), ("compression_level", "8")].to_params(),
+                        [("input_file", "file4.txt"), ("compression_level", "8")].to_params(),
+                        [("input_file", "file5.txt"), ("compression_level", "8")].to_params(),
+                    ],
+                },
+                Tasks {
+                    created_at: TimeStamp::from_str("2020-03-13 14:13:00 +01:00").unwrap(),
+                    task_type: "send".to_string(),
+                    input_sets: vec![[("url", "https://my-server:8080")].to_params()],
+                },
+            ],
         },
     ]
 }
@@ -196,13 +225,17 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
             .unwrap();
     }
 
-    // now create the tasks for the jobs
-    for (job_id, test_job) in job_ids.iter().zip(test_jobs.iter()) {
-        let task_type = test_job.tasks.task_type.as_str();
-        let timestamp = test_job.tasks.created_at;
-        let task_parameter_sets: Vec<&ParameterSet> = test_job.tasks.input_sets.iter().collect();
+    // now create the tasks for the jobs of first stage
+    let mut created_tasks: HashMap<Id, HashMap<Id, usize>> = HashMap::new();
 
-        backend
+    for (job_id, test_job) in job_ids.iter().zip(test_jobs.iter()) {
+        let stage0_tasks = test_job.tasks.first().unwrap();
+
+        let task_type = stage0_tasks.task_type.as_str();
+        let timestamp = stage0_tasks.created_at;
+        let task_parameter_sets: Vec<&ParameterSet> = stage0_tasks.input_sets.iter().collect();
+
+        let task_ids = backend
             .register_new_tasks_with_timestamp(
                 job_id,
                 task_type,
@@ -211,6 +244,23 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
             )
             .await
             .unwrap();
+
+        let task_id_map: HashMap<Id, usize> =
+            HashMap::from_iter(task_ids.iter().map(|id| (*id, 0usize)));
+        created_tasks.insert(*job_id, task_id_map);
+    }
+
+    // check if the tasks were created correctly
+    for job_id in job_ids.iter() {
+        let tasks = backend.job_tasks(job_id, 0, 10, None).await.unwrap();
+        let task_ids = created_tasks.get(job_id).unwrap();
+
+        assert_eq!(tasks.total_count, task_ids.len() as u64);
+
+        for task in tasks.tasks.iter() {
+            assert!(task_ids.contains_key(&task.task_id));
+            assert_eq!(task.stage, 0);
+        }
     }
 }
 

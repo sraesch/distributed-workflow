@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::{
     Error, Id, JobDetails, JobList, JobListEntry, JobState, JobTasks, ParameterSet,
-    Result as WfResult, Secret, StatesBackend, Status, TimeStamp,
+    Result as WfResult, Secret, StatesBackend, Status, TaskListEntry, TimeStamp,
 };
 
 /// Postgres based implementation of the state backend.
@@ -211,76 +211,67 @@ impl StatesBackend for PostgresBackend {
 
         let offset = offset as i64;
         let limit = limit as i64;
-        let rows = client
+        let rows = if let Some(job_stage) = stage {
+            let job_stage = job_stage as i32;
+
+            client
             .query_n(
-                "SELECT task_id, task_state, created_at, MAX(updated_at)
-                        FROM tasks, tasks_updates
-                        WHERE job_id = $1
-                        GROUP BY task_id
-                        ORDER BY created_at
+                "SELECT t.task_id, t.task_type, t.task_state, t.job_stage, t.created_at, MAX(u.updated_at)
+                        FROM tasks t, tasks_updates u
+                        WHERE t.job_id = $1 AND t.job_stage = $2 AND t.task_id = u.task_id
+                        GROUP BY t.task_id
+                        ORDER BY t.created_at
+                        OFFSET $3 LIMIT $4;",
+                &[&job_id.into_inner(), &job_stage, &offset, &limit],
+            )
+            .await?
+        } else {
+            client
+            .query_n(
+                "SELECT t.task_id, t.task_type, t.task_state, t.job_stage, t.created_at, MAX(u.updated_at)
+                        FROM tasks t, tasks_updates u
+                        WHERE t.job_id = $1 AND t.task_id = u.task_id
+                        GROUP BY t.task_id
+                        ORDER BY t.created_at
                         OFFSET $2 LIMIT $3;",
                 &[&job_id.into_inner(), &offset, &limit],
             )
+            .await?
+        };
+
+        let mut tasks = Vec::new();
+        for row in rows {
+            let task_id: Uuid = row.get(0);
+            let task_id = Id::from(task_id);
+            let task_name: String = row.get(1);
+            let task_state: i32 = row.get(2);
+            let task_state = Status::try_from(task_state)?;
+            let stage: i32 = row.get(3);
+            let stage = stage as usize;
+            let created_at: DateTime<Local> = row.get(4);
+            let updated_at: DateTime<Local> = row.get(5);
+
+            tasks.push(TaskListEntry {
+                task_id,
+                task_state,
+                task_name,
+                stage,
+                created_at,
+                updated_at,
+            });
+        }
+
+        // query the total amount of tasks related to the given job
+        let row = client
+            .query_1(
+                "SELECT COUNT(*) FROM tasks WHERE job_id = $1",
+                &[&job_id.into_inner()],
+            )
             .await?;
+        let total_count: i64 = row.get(0);
+        let total_count = total_count as u64;
 
-        todo!()
-
-        // let stmt = client
-        //     .prepare(
-        //         "SELECT t.task_id, t.task_state, t.created_at, MAX(u.updated_at)
-        //                 FROM tasks t, tasks_updates u
-        //                 WHERE t.job_id = u.job_id
-        //                 GROUP BY j.job_id
-        //                 ORDER BY j.created_at
-        //                 OFFSET $1 LIMIT $2;",
-        //     )
-        //     .await
-        //     .map_err(|e| Error::DBError(Box::new(e)))?;
-
-        // let offset = offset as i64;
-        // let limit = limit as i64;
-
-        // let rows = client
-        //     .query(&stmt, &[&offset, &limit])
-        //     .await
-        //     .map_err(|e| Error::DBError(Box::new(e)))?;
-
-        // let mut jobs = Vec::new();
-        // for row in rows {
-        //     let job_id: Uuid = row.get(0);
-        //     let job_id = Id::from(job_id);
-        //     let status: i32 = row.get(1);
-        //     let status = Status::try_from(status)?;
-        //     let stage: i32 = row.get(2);
-        //     let stage = stage as usize;
-        //     let job_type: String = row.get(3);
-        //     let created_at: DateTime<Local> = row.get(4);
-        //     let updated_at: DateTime<Local> = row.get(5);
-
-        //     let job_state = JobState { status, stage };
-
-        //     jobs.push(JobListEntry {
-        //         job_id,
-        //         job_state,
-        //         job_type,
-        //         created_at,
-        //         updated_at,
-        //     });
-        // }
-
-        // let mut tasks = Vec::new();
-
-        // // query the total amount of tasks related to the given job
-        // let row = self
-        //     .query_1(
-        //         "SELECT COUNT(*) FROM tasks WHERE job_id = $1",
-        //         &[&job_id.into_inner()],
-        //     )
-        //     .await?;
-        // let total_count: i64 = row.get(0);
-        // let total_count = total_count as u64;
-
-        // Ok(JobTasks { total_count, tasks })
+        Ok(JobTasks { total_count, tasks })
     }
 
     async fn update_job_state_with_timestamp(
@@ -332,10 +323,12 @@ impl StatesBackend for PostgresBackend {
             return Err(Error::JobNotRunning(*job_id));
         }
 
+        let job_stage = job_state.stage as i32;
+
         // prepare the insert statements
         let client = self.get_client().await?;
         let insert_task_statement = client
-            .prepare("INSERT INTO tasks (job_id, task_id, task_type, task_state, task_parameters, created_at) VALUES ($1, $2, $3, $4, $5, $6)")
+            .prepare("INSERT INTO tasks (job_id, task_id, task_type, job_stage, task_state, task_parameters, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)")
             .await
             .map_err(|e| Error::DBError(Box::new(e)))?;
         let insert_task_update_statement = client
@@ -371,6 +364,7 @@ impl StatesBackend for PostgresBackend {
                         &job_id.into_inner(),
                         &task_id.into_inner(),
                         &task_type,
+                        &job_stage,
                         &task_state,
                         &task_parameters,
                         &timestamp,
@@ -382,7 +376,7 @@ impl StatesBackend for PostgresBackend {
                     Some(SqlState::UNIQUE_VIOLATION) => {
                         return Err(Error::InternalError(format!(
                             "Task with id {} already exists, error in id generation",
-                            Id::from(task_id)
+                            task_id
                         )));
                     }
                     _ => return Err(Error::DBError(Box::new(err))),
