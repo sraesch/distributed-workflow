@@ -143,7 +143,7 @@ pub trait StatesBackend: Send + Sync {
         offset: u64,
         limit: u64,
         stage: Option<usize>,
-    ) -> impl Future<Output = Result<Option<JobTasks>>> + Send;
+    ) -> impl Future<Output = Result<JobTasks>> + Send;
 
     /// Updates the state of a job. Returns an error if the job with the given id was not found.
     ///
