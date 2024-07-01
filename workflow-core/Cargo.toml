@@ -8,4 +8,25 @@ log = "0.4"
 thiserror = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_yaml = "0.9"
+serde_json = "1.0"
 regex = "1.5"
+chrono = { version = "0.4", features = ["serde"] }
+tokio = { version = "1.0", features = ["sync"] }
+tokio-postgres = { version = "0.7", features = [
+    "with-uuid-1",
+    "with-serde_json-1",
+    "with-chrono-0_4",
+] }
+deadpool-postgres = "0.14"
+
+[dependencies.uuid]
+version = "1.8"
+features = [
+    "v4",                # Lets you generate random UUIDs
+    "serde",             # Lets you serialize and deserialize UUIDs
+    "fast-rng",          # Use a faster (but still sufficiently random) RNG
+    "macro-diagnostics", # Enable better diagnostics for compile-time UUIDs
+]
+
+[dev-dependencies]
+dockertest = "0.4"

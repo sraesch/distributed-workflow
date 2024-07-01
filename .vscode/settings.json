@@ -1,4 +1,10 @@
 {
   "editor.formatOnSave": true,
-  "cSpell.words": ["openapi", "thiserror"]
+  "cSpell.words": [
+    "deadpool",
+    "dockertest",
+    "openapi",
+    "plpgsql",
+    "thiserror"
+  ]
 }

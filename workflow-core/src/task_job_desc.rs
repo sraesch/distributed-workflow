@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::Read, sync::Arc};
+use std::{collections::HashMap, io::Read};
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -22,7 +22,7 @@ impl TaskJobDesc {
     /// * `r` - The reader to read the configuration from.
     pub fn from_reader<R: Read>(r: R) -> Result<Self> {
         let config: Self =
-            serde_yaml::from_reader(r).map_err(|e| Error::ParsingConfigError(Arc::new(e)))?;
+            serde_yaml::from_reader(r).map_err(|e| Error::ParsingConfigError(Box::new(e)))?;
 
         config.is_valid()?;
 
