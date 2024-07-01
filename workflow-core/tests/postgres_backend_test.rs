@@ -127,7 +127,7 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
     assert_eq!(jobs.total_count, 0);
     assert_eq!(jobs.jobs.len(), 0);
 
-    // register all test jobs
+    println!("Creating test jobs...");
     let test_jobs = create_list_of_test_jobs();
     let mut job_ids = Vec::new();
     for test_job in test_jobs.iter() {
@@ -142,6 +142,7 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
 
         job_ids.push(job_id);
     }
+    println!("Creating test jobs...DONE");
 
     // briefly check stage task summary
     for job_id in job_ids.iter() {
@@ -165,7 +166,7 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
         assert_eq!(job_state.stage, 0);
     }
 
-    // update the state of the jobs to queued
+    println!("Updating job states to queued...");
     for (job_id, test_job) in job_ids.iter().zip(test_jobs.iter()) {
         let new_updated_at = test_job.created_at + chrono::Duration::seconds(1);
 
@@ -179,6 +180,7 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
             .await
             .unwrap();
     }
+    println!("Updating job states to queued...DONE");
 
     // the first two jobs should have 1 seconds difference between the created and updated
     // timestamp
@@ -189,7 +191,7 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
         );
     }
 
-    // try to create a task while the job is not in running status
+    println!("Creating tasks for jobs that are not running...");
     match backend
         .register_new_tasks(
             job_ids.first().unwrap(),
@@ -207,8 +209,9 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
             );
         }
     }
+    println!("Creating tasks for jobs that are not running...DONE");
 
-    // try to create a task for job that does not exist
+    println!("Creating tasks for jobs that do not exist...");
     match backend
         .register_new_tasks(&Id::default(), "some_task_type", &[&ParameterSet::new()])
         .await
@@ -222,8 +225,9 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
             );
         }
     }
+    println!("Creating tasks for jobs that do not exist...DONE");
 
-    // update the state of the jobs to running
+    println!("Updating job states to running...");
     for job_id in job_ids.iter() {
         let new_job_state = JobState {
             status: Status::Running,
@@ -235,10 +239,12 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
             .await
             .unwrap();
     }
+    println!("Updating job states to running...DONE");
 
     // now create the tasks for the jobs of first stage
     let mut created_tasks: HashMap<Id, HashMap<Id, usize>> = HashMap::new();
 
+    println!("Creating tasks for jobs that are running...");
     for (job_id, test_job) in job_ids.iter().zip(test_jobs.iter()) {
         let stage0_tasks = test_job.tasks.first().unwrap();
 
@@ -260,6 +266,7 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
             HashMap::from_iter(task_ids.iter().map(|id| (*id, 0usize)));
         created_tasks.insert(*job_id, task_id_map);
     }
+    println!("Creating tasks for jobs that are running...DONE");
 
     // check if the tasks were created correctly and if the number of active tasks is correct
     for job_id in job_ids.iter() {
@@ -282,6 +289,7 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
     }
 
     // try to switch the state of an unknown task
+    println!("Switching the state of an unknown task...");
     match backend
         .update_task_state(&Id::default(), Status::Running)
         .await
@@ -295,8 +303,10 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
             );
         }
     }
+    println!("Switching the state of an unknown task...DONE");
 
     // try to switch the state of a task to an invalid state
+    println!("Switching the state of a task to an invalid state...");
     let some_task_id = *created_tasks
         .values()
         .next()
@@ -317,6 +327,7 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
             );
         }
     }
+    println!("Switching the state of a task to an invalid state...DONE");
 
     // briefly check stage task summary
     for (job_id, test_job) in job_ids.iter().zip(test_jobs.iter()) {
@@ -332,6 +343,7 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
     }
 
     // switch the state of the tasks to running
+    println!("Switching the state of the tasks to running...");
     for task_ids in created_tasks.values() {
         for task_id in task_ids.keys() {
             assert!(!backend
@@ -340,6 +352,7 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
                 .unwrap());
         }
     }
+    println!("Switching the state of the tasks to running...DONE");
 
     // briefly check stage task summary
     for (job_id, test_job) in job_ids.iter().zip(test_jobs.iter()) {
@@ -355,6 +368,7 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
     }
 
     // now switch the state of the tasks to finished
+    println!("Switching the state of the tasks to finished...");
     for task_ids in created_tasks.values() {
         for (i, task_id) in task_ids.keys().enumerate() {
             assert_eq!(
@@ -366,6 +380,7 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
             );
         }
     }
+    println!("Switching the state of the tasks to finished...DONE");
 
     // briefly check stage task summary
     for (job_id, test_job) in job_ids.iter().zip(test_jobs.iter()) {
@@ -388,6 +403,8 @@ async fn states_backend_test<B: StatesBackend>(backend: B) {
         assert_eq!(job.job_type, test_job.job_type);
         assert_eq!(job.job_state.stage, 0);
     }
+
+    println!("DONE");
 }
 
 #[tokio::test(flavor = "multi_thread")]
