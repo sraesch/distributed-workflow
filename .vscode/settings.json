@@ -1,10 +1,12 @@
 {
   "editor.formatOnSave": true,
   "cSpell.words": [
+    "amqprs",
     "deadpool",
     "dockertest",
     "openapi",
     "plpgsql",
+    "rabbitmq",
     "thiserror"
   ]
 }

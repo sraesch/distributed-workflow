@@ -1,9 +1,11 @@
 mod id;
+mod messaging;
 mod states;
 
 use std::fmt::Display;
 
 pub use id::*;
+pub use messaging::*;
 pub use states::*;
 
 use serde::{Deserialize, Serialize};
