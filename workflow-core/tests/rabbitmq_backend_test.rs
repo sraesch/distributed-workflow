@@ -185,7 +185,6 @@ async fn test_mq<MQ: MessageQueue + 'static>(mq: MQ) {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore] // ignore this test by default, as it requires a running RabbitMQ server
 async fn test_rabbit_mq() {
     // Define our test instance
     let mut test = DockerTest::new();
