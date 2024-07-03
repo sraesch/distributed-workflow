@@ -31,3 +31,4 @@ features = [
 
 [dev-dependencies]
 dockertest = "0.4"
+rand = "0.8"
