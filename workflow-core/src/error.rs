@@ -6,8 +6,20 @@ use crate::{Id, Status};
 
 #[derive(Error, Debug)]
 pub enum Error {
+    #[error("RabbitMQ error: {0}")]
+    MessageQueue(#[source] Box<amqprs::error::Error>),
+
+    #[error("RabbitMQ error: {0}")]
+    MessageQueue2(String),
+
+    #[error("There has been no message in the queue.")]
+    MessageQueueNoMessage,
+
     #[error("Failed parsing the config: {0}")]
     ParsingConfigError(#[from] Box<YamlError>),
+
+    #[error("Serialization error: {0}")]
+    Serialization(#[from] Box<serde_json::Error>),
 
     #[error("Invalid config: {0}")]
     InvalidConfigError(String),
