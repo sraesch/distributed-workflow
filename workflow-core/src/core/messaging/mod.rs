@@ -1,3 +1,4 @@
+mod rabbit_mq;
 
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -5,6 +6,7 @@ use crate::Result;
 
 use std::future::Future;
 
+pub use rabbit_mq::*;
 
 /// An asynchronous message queue that can be used to receive messages.
 pub trait IncomingMessages: Send + Sync {
