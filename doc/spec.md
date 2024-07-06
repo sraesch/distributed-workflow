@@ -149,6 +149,7 @@ To see the the API in an interactive way, you can use the Swagger UI. To do so, 
 ## Workflow
 
 ### Message types
+There are the following type of messages to be sent to the message queue. 
 
 #### Job Stage Spawn
 The message is sent to the message queue to spawn the tasks of a stage in a job. The message contains the job id and the stage number.
@@ -206,4 +207,3 @@ sequenceDiagram
     C->>+U: Response to job status
     deactivate C
 ```
-There are the following type of messages to be sent to the message queue. 
