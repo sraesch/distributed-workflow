@@ -145,3 +145,65 @@ For the full example, see [example/task_job_config.yaml](../example/task_job_con
 ## REST API
 The engine provides a REST API for managing the jobs. For detailed overview see the OpenAPI specification in [/doc/openapi.yml](openapi.yml).
 To see the the API in an interactive way, you can use the Swagger UI. To do so, click here [Swagger UI](https://editor.swagger.io/?url=https://raw.githubusercontent.com/sraesch/distributed-workflow/main/doc/openapi.yml).
+
+## Workflow
+
+### Message types
+
+#### Job Stage Spawn
+The message is sent to the message queue to spawn the tasks of a stage in a job. The message contains the job id and the stage number.
+
+```json
+{
+  "type": "job_stage_spawn",
+  "job_id": "a5199502-3767-48af-883c-69bb0a33367c",
+  "stage": 1
+}
+```
+
+#### Task Spawn
+This message is a task to be executed by the worker. The message contains the job id, the task id and the task class.
+
+```json
+{
+  "type": "task",
+  "task_id": "a5199502-3767-48af-883c-69bb0a33367c",
+}
+```
+
+### Sequence of Workflow
+Following a description how a job is being processed.
+The creation of a new job is being triggered through a REST-API request. The controller creates a new job by creating an entry in the state database and sending a message to the message queue to spawn tasks for the first stage. A worker pulls the job_stage_spawn message from the message queue and updates the state of the job to running in the states database. The worker creates the tasks for the stage and sends a task message to the message queue for each task. The worker then pull the respective task messages from the message queue, updating the state of the tasks and executing them. When a worker finished the last task, it then sends a message to the message queue to spawn the tasks of the next stage. Meanwhile the controller can be asked for the status of the job. The controller checks the state of the job in the state database and sends back the status to the user/application.
+
+
+The following diagram illustrates conceptual the sequence of the workflow:
+```mermaid
+sequenceDiagram
+    participant U as User/Application
+    participant C as Workflow-Controller
+    participant S as State DB
+    participant M as Message Queue
+    participant W as Worker
+    activate C
+    U->>+C: REST-Request to create a job
+    C->>+S: Create job in state database
+    C->>+M: Send job_stage_spawn to message queue
+    C->>+U: Send back job id
+    deactivate C
+    activate W
+    M->>+W: job_stage_spawn
+    W->>+S: Update job status to running
+    W->>+M: Create task(s)
+    deactivate W
+    activate W
+    M->>+W: task
+    W->>+S: Update state of task & job
+    W->>+M: job_stage_spawn
+    deactivate W
+    activate C
+    U->>+C: Ask for job status
+    C->>+S: Check job status
+    C->>+U: Response to job status
+    deactivate C
+```
+There are the following type of messages to be sent to the message queue. 
