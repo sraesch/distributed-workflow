@@ -1,7 +1,9 @@
 {
   "editor.formatOnSave": true,
   "cSpell.words": [
+    "actix",
     "amqprs",
+    "dbname",
     "deadpool",
     "dockertest",
     "openapi",
