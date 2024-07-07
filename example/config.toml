@@ -1,0 +1,23 @@
+# The logging level
+log = "Info"
+# The path to where all job and task data is stored
+root_dir = "./task_volume"
+# The path to the description of the tasks and jobs
+task_job_desc = "example/task_job_config.yaml"
+# The address to bind the controller REST API
+address = "0.0.0.0:3030"
+
+# Connection details for RabbitMQ
+[rabbitmq]
+host = "localhost"
+port = 5672
+user = "guest"
+password = "guest"
+
+# Connection details for Postgres
+[postgres]
+host = "localhost"
+port = 5432
+dbname = "postgres"
+user = "postgres"
+password = "postgres"

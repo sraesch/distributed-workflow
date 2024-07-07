@@ -1,6 +1,16 @@
 [package]
 name = "cli-common"
+description = "Common utils and functionalities for the CLI tools"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+workflow-core = { path = "../workflow-core" }
+log = "0.4"
+anyhow = "1.0"
+env_logger = "0.11"
+chrono = { version = "0.4" }
+serde_derive = "1.0"
+serde = "1.0"
+toml = "0.8"
+clap = { version = "4.2", features = ["cargo"] }

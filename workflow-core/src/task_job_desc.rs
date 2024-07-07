@@ -1,4 +1,4 @@
-use std::{collections::HashMap, io::Read};
+use std::{collections::HashMap, io::Read, path::Path};
 
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -15,6 +15,15 @@ pub struct TaskJobDesc {
 }
 
 impl TaskJobDesc {
+    /// Reads the task and job configuration from a file and checks if the configuration is valid.
+    ///
+    /// # Arguments
+    /// * `path` - The path to the file to read the configuration from.
+    pub fn from_file<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let file = std::fs::File::open(path).map_err(|e| Error::IO(Box::new(e)))?;
+        Self::from_reader(file)
+    }
+
     /// Reads the task and job configuration from a reader and checks if the configuration is
     /// valid.
     ///
